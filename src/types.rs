@@ -10,7 +10,7 @@ pub const ELFMAG2: u8 = 'L' as u8;
 pub const ELFMAG3: u8 = 'F' as u8;
 
 /// Represents the ELF file class (32-bit vs 64-bit)
-#[derive(Copy, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Class(pub u8);
 
 /// Invalid ELF file class
@@ -438,7 +438,7 @@ impl fmt::Display for FileHeader {
 }
 
 /// Represents ELF Program Header flags
-#[derive(Copy, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct ProgFlag(pub u32);
 
 pub const PF_NONE : ProgFlag = ProgFlag(0);
@@ -561,7 +561,7 @@ impl fmt::Display for ProgramHeader {
 }
 
 /// Represens ELF Section type
-#[derive(Copy, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct SectionType(pub u32);
 
 /// Inactive section with undefined values
