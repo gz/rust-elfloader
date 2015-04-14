@@ -2,7 +2,11 @@
 name = "elfloader"
 version = "0.0.1"
 authors = ["Gerd Zellweger <mail@gerdzellweger.com>", "Christopher Cole <chris.cole.09@gmail.com>"]
+repository = "https://github.com/gz/rust-elfloader"
 license = "Apache-2.0"
 description = "A rust library to load ELF files."
 keywords = ["elf", "x86", "os"]
 readme = "README.md"
+
+[dependencies.klogger]
+git = "https://github.com/gz/rust-klogger.git"

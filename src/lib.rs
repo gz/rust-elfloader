@@ -8,9 +8,11 @@
 #[macro_use]
 extern crate core;
 #[macro_use]
-extern crate x86;
-#[macro_use]
 extern crate klogger;
+
+#[cfg(test)]
+#[macro_use]
+extern crate std;
 
 mod types;
 use core::mem::{transmute, size_of};
