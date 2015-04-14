@@ -1,30 +1,18 @@
+use core::fmt;
 
-use std::fmt;
-
-/// Length of ELF file header platform-independent identification fields
-pub const EI_NIDENT: usize = 16;
 /// ELF magic number byte 1
 pub const ELFMAG0: u8 = 0x7f;
 /// ELF magic number byte 2
-pub const ELFMAG1: u8 = 0x45;
+pub const ELFMAG1: u8 = 'E' as u8;
 /// ELF magic number byte 3
-pub const ELFMAG2: u8 = 0x4c;
+pub const ELFMAG2: u8 = 'L' as u8;
 /// ELF magic number byte 4
-pub const ELFMAG3: u8 = 0x46;
-/// Location of ELF class field in ELF file header ident array
-pub const EI_CLASS: usize = 4;
-/// Location of data format field in ELF file header ident array
-pub const EI_DATA: usize = 5;
-/// Location of ELF version field in ELF file header ident array
-pub const EI_VERSION: usize = 6;
-/// Location of OS ABI field in ELF file header ident array
-pub const EI_OSABI: usize = 7;
-/// Location of ABI version field in ELF file header ident array
-pub const EI_ABIVERSION: usize = 8;
+pub const ELFMAG3: u8 = 'F' as u8;
 
 /// Represents the ELF file class (32-bit vs 64-bit)
 #[derive(Copy, PartialEq)]
 pub struct Class(pub u8);
+
 /// Invalid ELF file class
 pub const ELFCLASSNONE : Class = Class(0);
 /// 32-bit ELF file
@@ -53,6 +41,7 @@ impl fmt::Display for Class {
 /// Represents the ELF file data format (little-endian vs big-endian)
 #[derive(Copy, PartialEq)]
 pub struct Data(pub u8);
+
 /// Invalid ELF data format
 pub const ELFDATANONE : Data = Data(0);
 /// little-endian ELF file
@@ -79,10 +68,9 @@ impl fmt::Display for Data {
 }
 
 /// Represents the ELF file version
-///
-/// This field represents the values both found in the e_ident byte array and the e_version field.
-#[derive(Copy)]
-pub struct Version(pub u32);
+#[derive(Copy, Eq, PartialEq)]
+pub struct Version(pub u8);
+
 /// Invalid version
 pub const EV_NONE : Version = Version(0);
 /// Current version
@@ -106,8 +94,9 @@ impl fmt::Display for Version {
 }
 
 /// Represents the ELF file OS ABI
-#[derive(Copy)]
+#[derive(Copy, Eq, PartialEq)]
 pub struct OSABI(pub u8);
+
 /// Defaults to Unix System V
 pub const ELFOSABI_NONE : OSABI = OSABI(0);
 /// Unix System V
@@ -160,7 +149,7 @@ impl fmt::Display for OSABI {
 }
 
 /// Represents the ELF file type (object, executable, shared lib, core)
-#[derive(Copy)]
+#[derive(Copy, Eq, PartialEq)]
 pub struct Type(pub u16);
 /// No file type
 pub const ET_NONE : Type = Type(0);
@@ -194,7 +183,7 @@ impl fmt::Display for Type {
 }
 
 /// Represents the ELF file machine architecture
-#[derive(Copy)]
+#[derive(Copy, Eq, PartialEq)]
 pub struct Machine(pub u16);
 pub const EM_NONE : Machine = Machine(0);
 pub const EM_M32 : Machine = Machine(1);
@@ -368,14 +357,19 @@ impl fmt::Display for Machine {
     }
 }
 
-/// Encapsulates the contents of the ELF File Header
-///
-/// The ELF File Header starts off every ELF file and both identifies the
-/// file contents and informs how to interpret said contents. This includes
-/// the width of certain fields (32-bit vs 64-bit), the data endianness, the
-/// file type, and more.
+/// First 16 bytes of the ELF file header.
 #[derive(Copy, Debug)]
-pub struct FileHeader {
+#[repr(C, packed)]
+pub struct ElfIdent {
+    /// Must have value 0x7f.
+    pub magic0: u8,
+    /// Must have value 'E'.
+    pub magic1: u8,
+    /// Must have value 'L'.
+    pub magic2: u8,
+    /// Must have value 'F'.
+    pub magic3: u8,
+
     /// 32-bit vs 64-bit
     pub class:      Class,
     /// little vs big endian
@@ -386,32 +380,67 @@ pub struct FileHeader {
     pub osabi:      OSABI,
     /// Version of the OS ABI
     pub abiversion: u8,
+    // Reserved (should be zero).
+    pub padding: [u8; 7],
+}
+
+impl fmt::Display for ElfIdent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let valid_magic = match self.magic0 == ELFMAG0 &&
+                                self.magic1 == ELFMAG1 &&
+                                self.magic2 == ELFMAG2 &&
+                                self.magic3 == ELFMAG3 {
+                                    true => "valid magic",
+                                    _ => "invalid magic"
+                                };
+        write!(f, "ElfIdent: {} {} {} {} {}", valid_magic, self.class, self.data, self.version, self.osabi)
+    }
+}
+
+/// Encapsulates the contents of the ELF File Header
+#[derive(Copy, Debug)]
+#[repr(C, packed)]
+pub struct FileHeader {
+    pub ident: ElfIdent,
     /// ELF file type
     pub elftype:    Type,
     /// Target machine architecture
     pub machine:    Machine,
+    /// ELF version
+    pub version:    u32,
     /// Virtual address of program entry point
     pub entry:      u64,
-}
-
-impl FileHeader {
-    pub fn new() -> FileHeader {
-        FileHeader { class : ELFCLASSNONE, data : ELFDATANONE, version : EV_NONE,
-            elftype : ET_NONE, machine : EM_NONE, osabi : ELFOSABI_NONE,
-            abiversion : 0, entry : 0 }
-    }
+    /// Start of program headers (bytes into file)
+    pub phoff:      u64,
+    /// Start of section headers (bytes into file)
+    pub shoff:      u64,
+    pub flags:      u32,
+    /// Size of this header.
+    pub ehsize:     u16,
+    /// Size of program headers.
+    pub phentsize:  u16,
+    /// Number of program headers.
+    pub phnum:      u16,
+    /// Size of section headers.
+    pub shentsize:  u16,
+    /// Number of section headers.
+    pub shnum:      u16,
+    /// Section header string table index.
+    pub shstrndx:   u16,
 }
 
 impl fmt::Display for FileHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "File Header for {} {} Elf {} for {} {}", self.class, self.data,
-            self.elftype, self.osabi, self.machine)
+        write!(f, "FileHeader: [{}] is {} for {} in version {} starts at {:x}",
+               self.ident, self.elftype, self.machine,
+               self.version, self.entry)
     }
 }
 
 /// Represents ELF Program Header flags
 #[derive(Copy, PartialEq)]
 pub struct ProgFlag(pub u32);
+
 pub const PF_NONE : ProgFlag = ProgFlag(0);
 /// Executable program segment
 pub const PF_X : ProgFlag = ProgFlag(1);
@@ -449,6 +478,7 @@ impl fmt::Display for ProgFlag {
 /// Represents ELF Program Header type
 #[derive(Copy, PartialEq)]
 pub struct ProgType(pub u32);
+
 /// Program header table entry unused
 pub const PT_NULL : ProgType = ProgType(0);
 /// Loadable program segment
@@ -506,6 +536,8 @@ impl fmt::Display for ProgType {
 pub struct ProgramHeader {
     /// Program segment type
     pub progtype: ProgType,
+    /// Flags for this segment
+    pub flags:    ProgFlag,
     /// Offset into the ELF file where this segment begins
     pub offset:   u64,
     /// Virtual adress where this segment should be loaded
@@ -516,8 +548,6 @@ pub struct ProgramHeader {
     pub filesz:   u64,
     /// Size of this segment in memory
     pub memsz:    u64,
-    /// Flags for this segment
-    pub flags:    ProgFlag,
     /// file and memory alignment
     pub align:    u64,
 }
@@ -533,6 +563,7 @@ impl fmt::Display for ProgramHeader {
 /// Represens ELF Section type
 #[derive(Copy, PartialEq)]
 pub struct SectionType(pub u32);
+
 /// Inactive section with undefined values
 pub const SHT_NULL : SectionType = SectionType(0);
 /// Information defined by the program, includes executable code and data
@@ -626,6 +657,7 @@ impl fmt::Display for SectionType {
 ///
 #[derive(Copy, PartialEq)]
 pub struct SectionFlag(pub u64);
+
 /// Empty flags
 pub const SHF_NONE : SectionFlag = SectionFlag(0);
 /// Writable
@@ -665,7 +697,7 @@ impl fmt::Display for SectionFlag {
 #[derive(Debug)]
 pub struct SectionHeader {
     /// Section Name
-    pub name:      String,
+    pub name:      &'static str,
     /// Section Type
     pub shtype:    SectionType,
     /// Section Flags
@@ -696,6 +728,7 @@ impl fmt::Display for SectionHeader {
 
 #[derive(Copy)]
 pub struct SymbolType(pub u8);
+
 /// Unspecified symbol type
 pub const STT_NOTYPE : SymbolType = SymbolType(0);
 /// Data object symbol
@@ -732,6 +765,7 @@ impl fmt::Display for SymbolType {
 
 #[derive(Copy)]
 pub struct SymbolBind(pub u8);
+
 /// Local symbol
 pub const STB_LOCAL : SymbolBind = SymbolBind(0);
 /// Global symbol
@@ -756,6 +790,7 @@ impl fmt::Display for SymbolBind {
 
 #[derive(Copy)]
 pub struct SymbolVis(pub u8);
+
 /// Default symbol visibility
 pub const STV_DEFAULT : SymbolVis = SymbolVis(0);
 /// Processor-specific hidden visibility
@@ -780,7 +815,7 @@ impl fmt::Display for SymbolVis {
 
 pub struct Symbol {
     /// Symbol name
-    pub name: String,
+    pub name: &'static str,
     /// Symbol value
     pub value: u64,
     /// Symbol size
@@ -802,4 +837,3 @@ impl Symbol {
         SymbolVis(self.other & 0x3)
     }
 }
-

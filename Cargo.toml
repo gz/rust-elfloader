@@ -1,19 +1,8 @@
 [package]
-name = "elf"
-version = "0.0.4"
-authors = ["Christopher Cole <chris.cole.09@gmail.com>"]
+name = "elfloader"
+version = "0.0.1"
+authors = ["Gerd Zellweger <mail@gerdzellweger.com>", "Christopher Cole <chris.cole.09@gmail.com>"]
 license = "Apache-2.0"
-homepage = "https://github.com/cole14/rust-elf/"
-repository = "https://github.com/cole14/rust-elf/"
-documentation = "http://cole14.github.io/rust-elf/"
-description = "A pure-rust library for parsing ELF files"
-keywords = ["elf"]
+description = "A rust library to load ELF files."
+keywords = ["elf", "x86", "os"]
 readme = "README.md"
-
-[[bin]]
-name = "rust-readelf"
-
-[lib]
-name = "elf"
-
-

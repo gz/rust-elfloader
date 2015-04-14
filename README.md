@@ -1,27 +1,11 @@
-[![Build Status](https://travis-ci.org/cole14/rust-elf.svg?branch=master)](https://travis-ci.org/cole14/rust-elf)
+[![Build Status](https://travis-ci.org/gz/rust-elfloader.svg?branch=master)](https://travis-ci.org/gz/rust-elfloader)
 
-# rust-elf
-Pure-Rust library for parsing ELF files
+# rust-elfloader
 
-[Documentation](http://cole14.github.io/rust-elf/)
+A library to load and relocate ELF files in memory.
+This library depends only on libcore so it can be used in kernel level code,
+for example to load user-space programs.
 
-## Example:
-```rust
-extern crate elf;
-
-use std::path::Path;
-
-let path = Path::new("/some/file/path");
-let file = match elf::File::open(&path) {
-    Ok(f) => f,
-    Err(e) => panic!("Error: {:?}", e),
-};
-
-let text_scn = match file.get_section(String::from_str(".text")) {
-    Some(s) => s,
-    None => panic!("Failed to look up .text section"),
-};
-
-println!("{}", text_scn.data);
-
-```
+This library reuses a modified version of the types.rs 
+file from [rust-elf](https://github.com/cole14/rust-elf)
+by Christopher Cole.
