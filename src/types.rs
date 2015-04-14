@@ -39,7 +39,7 @@ impl fmt::Display for Class {
 }
 
 /// Represents the ELF file data format (little-endian vs big-endian)
-#[derive(Copy, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Data(pub u8);
 
 /// Invalid ELF data format
@@ -68,7 +68,7 @@ impl fmt::Display for Data {
 }
 
 /// Represents the ELF file version
-#[derive(Copy, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Version(pub u8);
 
 /// Invalid version
@@ -94,7 +94,7 @@ impl fmt::Display for Version {
 }
 
 /// Represents the ELF file OS ABI
-#[derive(Copy, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct OSABI(pub u8);
 
 /// Defaults to Unix System V
@@ -149,7 +149,7 @@ impl fmt::Display for OSABI {
 }
 
 /// Represents the ELF file type (object, executable, shared lib, core)
-#[derive(Copy, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Type(pub u16);
 /// No file type
 pub const ET_NONE : Type = Type(0);
@@ -183,7 +183,7 @@ impl fmt::Display for Type {
 }
 
 /// Represents the ELF file machine architecture
-#[derive(Copy, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Machine(pub u16);
 pub const EM_NONE : Machine = Machine(0);
 pub const EM_M32 : Machine = Machine(1);
@@ -358,7 +358,7 @@ impl fmt::Display for Machine {
 }
 
 /// First 16 bytes of the ELF file header.
-#[derive(Copy, Debug)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
 pub struct ElfIdent {
     /// Must have value 0x7f.
@@ -398,7 +398,7 @@ impl fmt::Display for ElfIdent {
 }
 
 /// Encapsulates the contents of the ELF File Header
-#[derive(Copy, Debug)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
 pub struct FileHeader {
     pub ident: ElfIdent,
@@ -476,7 +476,7 @@ impl fmt::Display for ProgFlag {
 }
 
 /// Represents ELF Program Header type
-#[derive(Copy, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct ProgType(pub u32);
 
 /// Program header table entry unused
@@ -532,7 +532,7 @@ impl fmt::Display for ProgType {
 ///
 /// The program header table is an array of program header structures describing
 /// the various segments for program execution.
-#[derive(Copy, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct ProgramHeader {
     /// Program segment type
     pub progtype: ProgType,
@@ -655,7 +655,7 @@ impl fmt::Display for SectionType {
 ///
 /// Wrapper type for SectionFlag
 ///
-#[derive(Copy, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct SectionFlag(pub u64);
 
 /// Empty flags
@@ -726,7 +726,7 @@ impl fmt::Display for SectionHeader {
     }
 }
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 pub struct SymbolType(pub u8);
 
 /// Unspecified symbol type
@@ -763,7 +763,7 @@ impl fmt::Display for SymbolType {
     }
 }
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 pub struct SymbolBind(pub u8);
 
 /// Local symbol
@@ -788,7 +788,7 @@ impl fmt::Display for SymbolBind {
     }
 }
 
-#[derive(Copy)]
+#[derive(Copy, Clone)]
 pub struct SymbolVis(pub u8);
 
 /// Default symbol visibility
