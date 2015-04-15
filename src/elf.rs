@@ -540,7 +540,7 @@ pub struct ProgramHeader {
     pub flags:    ProgFlag,
     /// Offset into the ELF file where this segment begins
     pub offset:   u64,
-    /// Virtual adress where this segment should be loaded
+    /// Virtual address where this segment should be loaded
     pub vaddr:    u64,
     /// Physical address where this segment should be loaded
     pub paddr:    u64,

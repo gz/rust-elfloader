@@ -15,10 +15,14 @@ extern crate klogger;
 #[macro_use]
 extern crate std;
 
-mod elf;
+pub mod elf;
 use core::prelude::*;
+use core::fmt;
 use core::mem::{transmute, size_of};
 use core::slice;
+
+pub type PAddr = u64;
+pub type VAddr = u64;
 
 /// Abstract representation of a loadable ELF binary.
 pub struct ElfBinary {
@@ -27,12 +31,27 @@ pub struct ElfBinary {
     header: &'static elf::FileHeader,
 }
 
+impl fmt::Debug for ElfBinary {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {}", self.name, self.header)
+    }
+}
+
 /// Verify that memory region starts with a correct ELF magic.
 fn valid_elf_magic(region: &'static [u8]) -> bool {
     region[0] == elf::ELFMAG0 &&
     region[1] == elf::ELFMAG1 &&
     region[2] == elf::ELFMAG2 &&
     region[3] == elf::ELFMAG3
+}
+
+/// Implement this for ELF loading.
+pub trait ElfLoader {
+    /// Allocates a virtual region of size amount of bytes.
+    fn allocate(&self, base: VAddr, size: usize, flags: elf::ProgFlag);
+
+    /// Copies the region into the base.
+    fn load(&self, base: VAddr, region: &'static [u8]);
 }
 
 impl ElfBinary {
@@ -50,8 +69,8 @@ impl ElfBinary {
         None
     }
 
-    /// Print the program header.
-    pub fn print_headers(&self) {
+    /// Print the program headers.
+    pub fn print_program_headers(&self) {
         for p in self.program_headers() {
             log!("pheader = {}", p);
         }
@@ -86,5 +105,32 @@ impl ElfBinary {
 
         correct_class && correct_data && correct_elfversion && correct_machine && correct_osabi && correct_type
     }
+
+    fn load_header(&self, p: &elf::ProgramHeader, loader: &ElfLoader) {
+        let big_enough_region = self.region.len() >= (p.offset + p.filesz) as usize;
+        if !big_enough_region {
+            log!("Unable to load {}", p);
+            return;
+        }
+
+        loader.allocate(p.vaddr, p.memsz as usize, p.flags);
+        let segment: &'static [u8] = unsafe {
+            core::slice::from_raw_parts(
+                transmute(&self.region[p.offset as usize]), p.filesz as usize)
+        };
+        loader.load(p.vaddr, segment);
+    }
+
+    pub fn load(&self, loader: &ElfLoader) {
+        for p in self.program_headers() {
+            let x = match p.progtype {
+                elf::PT_LOAD => self.load_header(p, loader),
+                _ => ()
+            };
+        }
+
+    }
+
+
 
 }
