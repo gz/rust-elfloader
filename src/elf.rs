@@ -541,7 +541,7 @@ pub struct ProgramHeader {
     /// Offset into the ELF file where this segment begins
     pub offset:   u64,
     /// Virtual address where this segment should be loaded
-    pub vaddr:    u64,
+    pub vaddr:    usize,
     /// Physical address where this segment should be loaded
     pub paddr:    u64,
     /// Size of this segment in the file

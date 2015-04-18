@@ -22,7 +22,7 @@ use core::mem::{transmute, size_of};
 use core::slice;
 
 pub type PAddr = u64;
-pub type VAddr = u64;
+pub type VAddr = usize;
 
 /// Abstract representation of a loadable ELF binary.
 pub struct ElfBinary {
@@ -48,10 +48,10 @@ fn valid_elf_magic(region: &'static [u8]) -> bool {
 /// Implement this for ELF loading.
 pub trait ElfLoader {
     /// Allocates a virtual region of size amount of bytes.
-    fn allocate(&self, base: VAddr, size: usize, flags: elf::ProgFlag);
+    fn allocate(&mut self, base: VAddr, size: usize, flags: elf::ProgFlag);
 
     /// Copies the region into the base.
-    fn load(&self, base: VAddr, region: &'static [u8]);
+    fn load(&mut self, base: VAddr, region: &'static [u8]);
 }
 
 impl ElfBinary {
@@ -106,7 +106,7 @@ impl ElfBinary {
         correct_class && correct_data && correct_elfversion && correct_machine && correct_osabi && correct_type
     }
 
-    fn load_header(&self, p: &elf::ProgramHeader, loader: &ElfLoader) {
+    fn load_header(&self, p: &elf::ProgramHeader, loader: &mut ElfLoader) {
         let big_enough_region = self.region.len() >= (p.offset + p.filesz) as usize;
         if !big_enough_region {
             log!("Unable to load {}", p);
@@ -121,16 +121,13 @@ impl ElfBinary {
         loader.load(p.vaddr, segment);
     }
 
-    pub fn load(&self, loader: &ElfLoader) {
+    pub fn load(&self, loader: &mut ElfLoader) {
         for p in self.program_headers() {
             let x = match p.progtype {
                 elf::PT_LOAD => self.load_header(p, loader),
                 _ => ()
             };
         }
-
     }
-
-
 
 }
