@@ -69,7 +69,7 @@ impl ElfBinary {
     /// Print the program headers.
     pub fn print_program_headers(&self) {
         for p in self.program_headers() {
-            log!("pheader = {}", p);
+            //log!("pheader = {}", p);
         }
     }
 
@@ -106,7 +106,7 @@ impl ElfBinary {
     fn load_header(&self, p: &elf::ProgramHeader, loader: &mut ElfLoader) {
         let big_enough_region = self.region.len() >= (p.offset + p.filesz) as usize;
         if !big_enough_region {
-            log!("Unable to load {}", p);
+            //log!("Unable to load {}", p);
             return;
         }
 
