@@ -6,8 +6,6 @@
 
 #[macro_use]
 extern crate core;
-#[macro_use]
-extern crate klogger;
 
 #[cfg(test)]
 #[macro_use]
