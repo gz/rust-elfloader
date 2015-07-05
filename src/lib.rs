@@ -1,6 +1,4 @@
-#![feature(custom_derive)]
-#![feature(no_std)]
-#![feature(core)]
+#![feature(no_std, core, core_prelude, core_slice_ext, custom_derive)]
 #![no_std]
 
 #![crate_name = "elfloader"]
@@ -19,7 +17,6 @@ pub mod elf;
 use core::prelude::*;
 use core::fmt;
 use core::mem::{transmute, size_of};
-use core::slice;
 
 pub type PAddr = u64;
 pub type VAddr = usize;
