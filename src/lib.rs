@@ -4,15 +4,11 @@
 #![crate_name = "elfloader"]
 #![crate_type = "lib"]
 
-#[macro_use]
-extern crate core;
-
 #[cfg(test)]
 #[macro_use]
 extern crate std;
 
 pub mod elf;
-use core::prelude::*;
 use core::fmt;
 use core::mem::{transmute, size_of};
 
