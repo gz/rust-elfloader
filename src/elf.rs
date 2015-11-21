@@ -1,13 +1,7 @@
 use core::fmt;
 
-/// ELF magic number byte 1
-pub const ELFMAG0: u8 = 0x7f;
-/// ELF magic number byte 2
-pub const ELFMAG1: u8 = 'E' as u8;
-/// ELF magic number byte 3
-pub const ELFMAG2: u8 = 'L' as u8;
-/// ELF magic number byte 4
-pub const ELFMAG3: u8 = 'F' as u8;
+/// ELF magic number
+pub const ELF_MAGIC: &'static [u8] = &[0x7f, 'E' as u8, 'L' as u8, 'F' as u8];
 
 /// Represents the ELF file class (32-bit vs 64-bit)
 #[derive(Copy, Clone, PartialEq)]
@@ -361,14 +355,8 @@ impl fmt::Display for Machine {
 #[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
 pub struct ElfIdent {
-    /// Must have value 0x7f.
-    pub magic0: u8,
-    /// Must have value 'E'.
-    pub magic1: u8,
-    /// Must have value 'L'.
-    pub magic2: u8,
-    /// Must have value 'F'.
-    pub magic3: u8,
+    /// Must have value [0x7f, 'E', 'L', 'F'].
+    pub magic: [u8; 4],
 
     /// 32-bit vs 64-bit
     pub class:      Class,
@@ -386,10 +374,7 @@ pub struct ElfIdent {
 
 impl fmt::Display for ElfIdent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let valid_magic = match self.magic0 == ELFMAG0 &&
-                                self.magic1 == ELFMAG1 &&
-                                self.magic2 == ELFMAG2 &&
-                                self.magic3 == ELFMAG3 {
+        let valid_magic = match self.magic == ELF_MAGIC {
                                     true => "valid magic",
                                     _ => "invalid magic"
                                 };
@@ -693,11 +678,27 @@ impl fmt::Display for SectionFlag {
     }
 }
 
+// An offset to a null terminated string in the section string table
+#[derive(Copy, Clone)]
+pub struct StrOffset(pub u32);
+
+impl fmt::Debug for StrOffset {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:#x}", self.0)
+    }
+}
+
+impl fmt::Display for StrOffset {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:#x}", self.0)
+    }
+}
+
 /// Encapsulates the contents of an ELF Section Header
 #[derive(Debug)]
 pub struct SectionHeader {
     /// Section Name
-    pub name:      &'static str,
+    pub name:      StrOffset,
     /// Section Type
     pub shtype:    SectionType,
     /// Section Flags
@@ -815,13 +816,21 @@ impl fmt::Display for SymbolVis {
 
 pub struct Symbol {
     /// Symbol name
-    pub name: &'static str,
+    pub name: StrOffset,
+    info: u8,
+    other: u8,
+    section_index: u16,
     /// Symbol value
     pub value: u64,
     /// Symbol size
     pub size: u64,
-    info: u8,
-    other: u8,
+}
+
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Symbol: [{}] @ {:#x} size {:#x} in section {}",
+               self.name, self.value, self.size, self.section_index)
+    }
 }
 
 impl Symbol {
