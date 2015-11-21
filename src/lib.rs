@@ -16,20 +16,20 @@ pub type PAddr = u64;
 pub type VAddr = usize;
 
 /// Abstract representation of a loadable ELF binary.
-pub struct ElfBinary {
-    name: &'static str,
-    region: &'static [u8],
-    header: &'static elf::FileHeader,
+pub struct ElfBinary<'s> {
+    name: &'s str,
+    region: &'s [u8],
+    header: &'s elf::FileHeader,
 }
 
-impl fmt::Debug for ElfBinary {
+impl<'s> fmt::Debug for ElfBinary<'s> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} {}", self.name, self.header)
     }
 }
 
 /// Verify that memory region starts with a correct ELF magic.
-fn valid_elf_magic(region: &'static [u8]) -> bool {
+fn valid_elf_magic(region: &[u8]) -> bool {
     region[0] == elf::ELFMAG0 &&
     region[1] == elf::ELFMAG1 &&
     region[2] == elf::ELFMAG2 &&
@@ -45,13 +45,13 @@ pub trait ElfLoader {
     fn load(&mut self, base: VAddr, region: &'static [u8]);
 }
 
-impl ElfBinary {
+impl<'s> ElfBinary<'s> {
 
     /// Create a new ElfBinary.
     /// Makes sure that the provided region has valid ELF magic byte sequence
     /// and is big enough to contain at least the ELF file header
     /// otherwise it will return None.
-    pub fn new(name: &'static str, region: &'static [u8]) -> Option<ElfBinary> {
+    pub fn new(name: &'s str, region: &'s [u8]) -> Option<ElfBinary<'s>> {
         if region.len() >= size_of::<elf::FileHeader>() && valid_elf_magic(region) {
             let header: &elf::FileHeader = unsafe { transmute(&region[0]) };
             return Some(ElfBinary { name: name, region: region, header: header });
