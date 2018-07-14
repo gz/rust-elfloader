@@ -2,7 +2,6 @@
 #![no_std]
 #![crate_name = "elfloader"]
 #![crate_type = "lib"]
-#![deny(warnings)]
 
 #[cfg(test)]
 #[macro_use]
