@@ -353,7 +353,7 @@ impl fmt::Display for Machine {
 
 /// First 16 bytes of the ELF file header.
 #[derive(Copy, Clone, Debug)]
-#[repr(C, packed)]
+#[repr(packed)]
 pub struct ElfIdent {
     /// Must have value [0x7f, 'E', 'L', 'F'].
     pub magic: [u8; 4],
@@ -388,7 +388,7 @@ impl fmt::Display for ElfIdent {
 
 /// Encapsulates the contents of the ELF File Header
 #[derive(Copy, Clone, Debug)]
-#[repr(C, packed)]
+#[repr(packed)]
 pub struct FileHeader {
     pub ident: ElfIdent,
     /// ELF file type
@@ -526,6 +526,7 @@ impl fmt::Display for ProgType {
 /// The program header table is an array of program header structures describing
 /// the various segments for program execution.
 #[derive(Copy, Clone, Debug)]
+#[repr(packed)]
 pub struct ProgramHeader {
     /// Program segment type
     pub progtype: ProgType,
@@ -704,6 +705,7 @@ impl fmt::Display for StrOffset {
 
 /// Encapsulates the contents of an ELF Section Header
 #[derive(Debug)]
+#[repr(packed)]
 pub struct SectionHeader {
     /// Section Name
     pub name: StrOffset,
@@ -822,6 +824,7 @@ impl fmt::Display for SymbolVis {
     }
 }
 
+#[repr(packed)]
 pub struct Symbol {
     /// Symbol name
     pub name: StrOffset,
