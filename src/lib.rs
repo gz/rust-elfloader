@@ -86,7 +86,9 @@ impl<'s> ElfBinary<'s> {
 
     // Get the string at offset str_offset in the string table strtab
     fn strtab_str(&self, strtab: &'s elf::SectionHeader, str_offset: elf::StrOffset) -> &'s str {
-        assert!(strtab.shtype == elf::SHT_STRTAB);
+        unsafe {
+            assert!(strtab.shtype == elf::SHT_STRTAB);
+        }
         let data = self.section_data(strtab);
         let offset = str_offset.0 as usize;
         let mut end = offset;
@@ -101,7 +103,7 @@ impl<'s> ElfBinary<'s> {
         let strtab = self
             .section_headers()
             .iter()
-            .find(|s| s.shtype == elf::SHT_STRTAB && self.section_name(s) == ".strtab")
+            .find(|s| unsafe { s.shtype == elf::SHT_STRTAB } && self.section_name(s) == ".strtab")
             .unwrap();
         self.strtab_str(strtab, symbol.name)
     }
@@ -121,7 +123,9 @@ impl<'s> ElfBinary<'s> {
 
     // Get the symbols of the section
     fn section_symbols(&self, section: &'s elf::SectionHeader) -> &'s [elf::Symbol] {
-        assert!(section.shtype == elf::SHT_SYMTAB);
+        unsafe {
+            assert!(section.shtype == elf::SHT_SYMTAB);
+        }
         unsafe {
             slice_pod(
                 self.section_data(section),
@@ -136,7 +140,7 @@ impl<'s> ElfBinary<'s> {
         for sym in self
             .section_headers()
             .iter()
-            .filter(|s| s.shtype == elf::SHT_SYMTAB)
+            .filter(|s| unsafe { s.shtype == elf::SHT_SYMTAB })
             .flat_map(|s| self.section_symbols(s).iter())
         {
             func(sym);

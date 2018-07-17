@@ -548,9 +548,11 @@ pub struct ProgramHeader {
 
 impl fmt::Display for ProgramHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Program Header: Type: {} Offset: {:#010x} VirtAddr: {:#010x} PhysAddr: {:#010x} FileSize: {:#06x} MemSize: {:#06x} Flags: {} Align: {:#x}",
+        unsafe {
+            write!(f, "Program Header: Type: {} Offset: {:#010x} VirtAddr: {:#010x} PhysAddr: {:#010x} FileSize: {:#06x} MemSize: {:#06x} Flags: {} Align: {:#x}",
             self.progtype, self.offset, self.vaddr, self.paddr, self.filesz,
             self.memsz, self.flags, self.align)
+        }
     }
 }
 
@@ -704,7 +706,6 @@ impl fmt::Display for StrOffset {
 }
 
 /// Encapsulates the contents of an ELF Section Header
-#[derive(Debug)]
 #[repr(packed)]
 pub struct SectionHeader {
     /// Section Name
@@ -731,9 +732,11 @@ pub struct SectionHeader {
 
 impl fmt::Display for SectionHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Section Header: Name: {} Type: {} Flags: {} Addr: {:#010x} Offset: {:#06x} Size: {:#06x} Link: {} Info: {:#x} AddrAlign: {} EntSize: {}",
+        unsafe {
+            write!(f, "Section Header: Name: {} Type: {} Flags: {} Addr: {:#010x} Offset: {:#06x} Size: {:#06x} Link: {} Info: {:#x} AddrAlign: {} EntSize: {}",
             self.name, self.shtype, self.flags, self.addr, self.offset,
             self.size, self.link, self.info, self.addralign, self.entsize)
+        }
     }
 }
 
@@ -839,11 +842,13 @@ pub struct Symbol {
 
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Symbol: [{}] @ {:#x} size {:#x} in section {}",
-            self.name, self.value, self.size, self.section_index
-        )
+        unsafe {
+            write!(
+                f,
+                "Symbol: [{}] @ {:#x} size {:#x} in section {}",
+                self.name, self.value, self.size, self.section_index
+            )
+        }
     }
 }
 
