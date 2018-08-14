@@ -1,4 +1,4 @@
-#![feature(core, core_prelude, core_slice_ext, custom_derive)]
+#![feature(custom_derive)]
 #![no_std]
 #![crate_name = "elfloader"]
 #![crate_type = "lib"]
