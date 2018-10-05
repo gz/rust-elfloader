@@ -64,6 +64,10 @@ impl<'s> ElfBinary<'s> {
         None
     }
 
+    pub fn entry_point(&self) -> u64 {
+        self.header.entry
+    }
+
     /// Create a slice of the program headers.
     pub fn program_headers(&self) -> &'s [elf::ProgramHeader] {
         let correct_header_size = self.header.phentsize as usize == size_of::<elf::ProgramHeader>();
