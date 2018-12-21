@@ -1,4 +1,3 @@
-#![feature(custom_derive)]
 #![no_std]
 #![crate_name = "elfloader"]
 #![crate_type = "lib"]
