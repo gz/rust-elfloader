@@ -431,7 +431,7 @@ impl fmt::Display for FileHeader {
 }
 
 /// Represents ELF Program Header flags
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct ProgFlag(pub u32);
 
 pub const PF_NONE: ProgFlag = ProgFlag(0);
@@ -441,6 +441,10 @@ pub const PF_X: ProgFlag = ProgFlag(1);
 pub const PF_W: ProgFlag = ProgFlag(2);
 /// Readable program segment
 pub const PF_R: ProgFlag = ProgFlag(4);
+/// Read-write program segment
+pub const PF_RW: ProgFlag = ProgFlag(2 | 4);
+/// Executable and readable program segment
+pub const PF_RX: ProgFlag = ProgFlag(1 | 4);
 
 impl fmt::Debug for ProgFlag {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
