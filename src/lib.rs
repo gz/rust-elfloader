@@ -8,17 +8,13 @@ extern crate std;
 #[cfg(test)]
 extern crate env_logger;
 
-#[macro_use]
 extern crate log;
-
-#[macro_use]
 extern crate xmas_elf;
 
 use log::*;
 
 use core::fmt;
 
-mod elf;
 use xmas_elf::dynamic::Tag;
 use xmas_elf::header;
 use xmas_elf::program::ProgramHeader::{Ph32, Ph64};
@@ -33,7 +29,7 @@ pub type VAddr = u64;
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
 #[repr(u32)]
-enum TypeRela64 {
+pub enum TypeRela64 {
     /// No relocation.
     R_NONE,
     /// Add 64 bit symbol value.
@@ -123,7 +119,6 @@ impl TypeRela64 {
 /// Abstract representation of a loadable ELF binary.
 pub struct ElfBinary<'s> {
     name: &'s str,
-    region: &'s [u8],
     file: ElfFile<'s>,
 }
 
@@ -158,7 +153,6 @@ impl<'s> ElfBinary<'s> {
         let elf_file = ElfFile::new(region)?;
         Ok(ElfBinary {
             name: name,
-            region: region,
             file: elf_file,
         })
     }
@@ -276,8 +270,8 @@ impl<'s> ElfBinary<'s> {
     /// Requests that memory is allocated.
     /// Then copies the elf region into the allocated memory.
     fn load_header(&self, p: &ProgramHeader64, loader: &mut ElfLoader) -> Result<(), &'static str> {
-        loader.allocate(p.virtual_addr, p.mem_size as usize, p.flags);
-        loader.load(p.virtual_addr, p.raw_data(&self.file));
+        loader.allocate(p.virtual_addr, p.mem_size as usize, p.flags)?;
+        loader.load(p.virtual_addr, p.raw_data(&self.file))?;
         self.maybe_relocate(p, loader)?;
         Ok(())
     }
@@ -322,8 +316,6 @@ impl<'s> ElfBinary<'s> {
         let segment = p.get_data(&self.file)?;
         let mut rela = 0;
         let mut rela_size = 0;
-        let mut sym_ent = 0;
-        let mut sym_tab = 0;
         match segment {
             SegmentData::Dynamic64(dyn_entries) => {
                 for dyn_entry in dyn_entries {
@@ -331,8 +323,6 @@ impl<'s> ElfBinary<'s> {
                     match tag {
                         Tag::Rela => rela = dyn_entry.get_ptr()?,
                         Tag::RelaSize => rela_size = dyn_entry.get_val()?,
-                        Tag::SymTab => sym_tab = dyn_entry.get_ptr()?,
-                        Tag::SymEnt => sym_ent = dyn_entry.get_val()?,
                         _ => trace!("unsupported {:?}", dyn_entry),
                     }
                 }
