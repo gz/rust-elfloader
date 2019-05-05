@@ -17,15 +17,14 @@ extern crate xmas_elf;
 use log::*;
 
 use core::fmt;
-use core::mem::transmute;
 
 mod elf;
-use xmas_elf::*;
-use xmas_elf::header;
-use xmas_elf::program::{ProgramHeader64, ProgramIter, Type, Flags, SegmentData};
-use xmas_elf::program::ProgramHeader::{Ph64, Ph32};
 use xmas_elf::dynamic::Tag;
-use xmas_elf::sections::{SectionData, Rela};
+use xmas_elf::header;
+use xmas_elf::program::ProgramHeader::{Ph32, Ph64};
+use xmas_elf::program::{Flags, ProgramHeader64, ProgramIter, SegmentData, Type};
+use xmas_elf::sections::{Rela, SectionData};
+use xmas_elf::*;
 
 pub type PAddr = u64;
 pub type VAddr = u64;
@@ -116,7 +115,7 @@ impl TypeRela64 {
             21 => R_DTPOFF32,
             22 => R_GOTTPOFF,
             23 => R_TPOFF32,
-            x => Unknown(x)
+            x => Unknown(x),
         }
     }
 }
@@ -156,7 +155,6 @@ impl<'s> ElfBinary<'s> {
     /// and is big enough to contain at least the ELF file header
     /// otherwise it will return None.
     pub fn new(name: &'s str, region: &'s [u8]) -> Result<ElfBinary<'s>, &'static str> {
-
         let elf_file = ElfFile::new(region)?;
         Ok(ElfBinary {
             name: name,
@@ -176,7 +174,6 @@ impl<'s> ElfBinary<'s> {
     pub fn program_headers(&self) -> ProgramIter {
         self.file.program_iter()
     }
-
 
     /*
     /// Get the name of the section
@@ -260,11 +257,11 @@ impl<'s> ElfBinary<'s> {
             Err("Invalid version")
         } else if header.pt1.data() != header::Data::LittleEndian {
             Err("Wrong Endianness")
-        } else if !(header.pt1.os_abi() == header::OsAbi::SystemV || header.pt1.os_abi() == header::OsAbi::Linux) {
-            Err("Wrong ABI")
-        } else if !(typ == header::Type::Executable
-            || typ == header::Type::SharedObject)
+        } else if !(header.pt1.os_abi() == header::OsAbi::SystemV
+            || header.pt1.os_abi() == header::OsAbi::Linux)
         {
+            Err("Wrong ABI")
+        } else if !(typ == header::Type::Executable || typ == header::Type::SharedObject) {
             error!("Invalid ELF type {:?}", typ);
             Err("Invalid ELF type")
         } else if header.pt2.machine().as_machine() != header::Machine::X86_64 {
@@ -285,21 +282,27 @@ impl<'s> ElfBinary<'s> {
         Ok(())
     }
 
-    fn maybe_relocate(&self, loaded_header: &ProgramHeader64, loader: &mut ElfLoader) -> Result<(), &'static str> {
+    fn maybe_relocate(
+        &self,
+        loaded_header: &ProgramHeader64,
+        loader: &mut ElfLoader,
+    ) -> Result<(), &'static str> {
         // It's easier to just locate the section by name:
-        let rela_section_dyn = self.file.find_section_by_name(".rela.dyn").ok_or("No .rela.dyn section")?;
+        let rela_section_dyn = self
+            .file
+            .find_section_by_name(".rela.dyn")
+            .ok_or("No .rela.dyn section")?;
 
         let data = rela_section_dyn.get_data(&self.file)?;
         if let SectionData::Rela64(rela_entries) = data {
             // Now we finally have a list of relocation we're supposed to perform:
             for entry in rela_entries {
-                let typ = TypeRela64::from(entry.get_type());
+                let _typ = TypeRela64::from(entry.get_type());
                 loader.relocate(entry, loaded_header.virtual_addr)?;
             }
 
             Ok(())
-        }
-        else {
+        } else {
             return Err("Unexpected Section Data: was not Rela64");
         }
     }
@@ -308,7 +311,11 @@ impl<'s> ElfBinary<'s> {
     ///
     /// This section contains mostly entry point to other section headers (like relocation).
     /// At the moment this just does sanity checking for relocation later.
-    fn check_dynamic(&self, p: &ProgramHeader64, loader: &mut ElfLoader) -> Result<(), &'static str> {
+    fn check_dynamic(
+        &self,
+        p: &ProgramHeader64,
+        _loader: &mut ElfLoader,
+    ) -> Result<(), &'static str> {
         info!("load dynamic segement {:?}", p);
 
         // Walk through the dynamic program header and find the rela and sym_tab section offsets:
@@ -330,12 +337,17 @@ impl<'s> ElfBinary<'s> {
                     }
                 }
             }
-            _ => { return Err("Segment for dynamic data was not Dynamic64?"); }
+            _ => {
+                return Err("Segment for dynamic data was not Dynamic64?");
+            }
         };
         trace!("rela size {:?} rela off {:?}", rela_size, rela);
 
         // It's easier to just locate the section by name:
-        let rela_section_dyn = self.file.find_section_by_name(".rela.dyn").ok_or("No .rela.dyn section")?;
+        let rela_section_dyn = self
+            .file
+            .find_section_by_name(".rela.dyn")
+            .ok_or("No .rela.dyn section")?;
 
         // For sanity we still check it's size is the same as reported in DYNAMIC
         if rela_size != rela_section_dyn.size() || rela != rela_section_dyn.offset() {
@@ -360,7 +372,7 @@ impl<'s> ElfBinary<'s> {
                 Ph32(_) => {
                     error!("Encountered 32-bit header in 64bit ELF?");
                     return Err("Encountered 32-bit header");
-                },
+                }
                 Ph64(header) => {
                     let typ = header.get_type()?;
                     if typ == Type::Load {
@@ -376,21 +388,20 @@ impl<'s> ElfBinary<'s> {
     }
 }
 
-
 #[cfg(test)]
 mod test {
-    use crate::elf::*;
+
     use crate::*;
 
     use std::fs;
-    use std::process::Command;
+
     use std::vec::Vec;
 
     #[derive(Eq, Clone, PartialEq, Copy, Debug)]
     enum LoaderAction {
         Allocate(VAddr, usize, Flags),
         Load(VAddr, usize),
-        Relocate(VAddr, u64)
+        Relocate(VAddr, u64),
     }
     struct TestLoader {
         vbase: VAddr,
@@ -437,14 +448,21 @@ mod test {
                 TypeRela64::R_64 => {
                     trace!("R_64");
                     Ok(())
-                },
+                }
                 TypeRela64::R_RELATIVE => {
                     // This is a relative relocation, add the offset (where we put our
                     // binary in the vspace) to the addend and we're done.
-                    self.actions.push(LoaderAction::Relocate(addr as u64, relocation_difference + entry.get_addend()));
-                    trace!("R_RELATIVE *{:p} = {:#x}", addr, relocation_difference + entry.get_addend());
+                    self.actions.push(LoaderAction::Relocate(
+                        addr as u64,
+                        relocation_difference + entry.get_addend(),
+                    ));
+                    trace!(
+                        "R_RELATIVE *{:p} = {:#x}",
+                        addr,
+                        relocation_difference + entry.get_addend()
+                    );
                     Ok(())
-                },
+                }
                 TypeRela64::R_GLOB_DAT => {
                     trace!("TypeRela64::R_GLOB_DAT: Can't handle that.");
                     Ok(())
@@ -461,7 +479,6 @@ mod test {
             Ok(())
         }
     }
-
 
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -508,12 +525,12 @@ mod test {
         assert!(loader
             .actions
             .iter()
-            .find(|&&x| x == LoaderAction::Relocate(0x1000_0000+0x200db8, 0x1000_0000+0x000640))
+            .find(|&&x| x == LoaderAction::Relocate(0x1000_0000 + 0x200db8, 0x1000_0000 + 0x000640))
             .is_some());
         assert!(loader
             .actions
             .iter()
-            .find(|&&x| x == LoaderAction::Relocate(0x1000_0000+0x200dc0, 0x1000_0000+0x000600))
+            .find(|&&x| x == LoaderAction::Relocate(0x1000_0000 + 0x200dc0, 0x1000_0000 + 0x000600))
             .is_some());
 
         //info!("test {:#?}", loader.actions);
