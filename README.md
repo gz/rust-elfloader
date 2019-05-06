@@ -45,7 +45,9 @@ impl ElfLoader for ExampleLoader {
     }
 
     fn load(&mut self, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
-        info!("load region into = {:#x} -- {:#x}", self.vbase + base, self.vbase + base + region.len());
+        let start = self.vbase + base;
+        let end = self.vbase + base + region.len();
+        info!("load region into = {:#x} -- {:#x}", start, end);
         Ok(())
     }
 }
