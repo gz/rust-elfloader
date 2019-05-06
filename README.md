@@ -9,7 +9,7 @@ load user-space programs.
 ## How-to use
 Clients will have to implement the ElfLoader trait:
 
-```
+```rust
 /// A simple ExampleLoader, that implements ElfLoader
 /// but does nothing but logging
 struct ExampleLoader {
@@ -53,7 +53,7 @@ impl ElfLoader for ExampleLoader {
 
 Then, with ElfBinary, a ELF file is loaded using `load`:
 
-```
+```rust
 let binary_blob = fs::read("test/test").expect("Can't read binary");
 let binary = ElfBinary::new("test", binary_blob.as_slice()).expect("Got proper ELF file");
 let mut loader = ExampleLoader::new(0x1000_0000);
