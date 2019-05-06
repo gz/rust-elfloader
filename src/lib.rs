@@ -18,9 +18,14 @@ use core::fmt;
 use xmas_elf::dynamic::Tag;
 use xmas_elf::header;
 use xmas_elf::program::ProgramHeader::{Ph32, Ph64};
-use xmas_elf::program::{Flags, ProgramHeader64, ProgramIter, SegmentData, Type};
-use xmas_elf::sections::{Rela, SectionData};
+use xmas_elf::program::{ProgramHeader64, ProgramIter, SegmentData, Type};
+use xmas_elf::sections::SectionData;
 use xmas_elf::*;
+
+pub use xmas_elf::program::Flags;
+pub use xmas_elf::sections::Rela;
+pub use xmas_elf::symbol_table::{Entry, Entry64};
+pub use xmas_elf::{P32, P64};
 
 pub type PAddr = u64;
 pub type VAddr = u64;
@@ -84,7 +89,7 @@ pub enum TypeRela64 {
 
 impl TypeRela64 {
     // Construt a new TypeRela64
-    fn from(typ: u32) -> TypeRela64 {
+    pub fn from(typ: u32) -> TypeRela64 {
         use TypeRela64::*;
         match typ {
             0 => R_NONE,
@@ -169,76 +174,28 @@ impl<'s> ElfBinary<'s> {
         self.file.program_iter()
     }
 
-    /*
-    /// Get the name of the section
-    pub fn symbol_name(&self, symbol: &'s elf::Symbol) -> &'s str {
-        /*let strtab = self
-            .section_headers()
-            .iter()
-            .find(|s| unsafe { s.shtype == elf::SHT_STRTAB } && self.section_name(s) == ".strtab")
-            .unwrap();
-        self.strtab_str(strtab, symbol.name)*/
-        "dummy"
-    }
-
-    /// Get the data of the section
-    pub fn section_data(&self, section: &'s elf::SectionHeader) -> &'s [u8] {
-        &self.region[(section.offset as usize)..(section.offset as usize + section.size as usize)]
-    }
-
-    /// Get the name of the section
-    pub fn section_name(&self, section: &'s elf::SectionHeader) -> &'s str {
-        self.strtab_str(
-            &self.section_headers()[self.header.shstrndx as usize],
-            section.name,
-        )
-    }
-
-    /// Get the symbols of the section
-    fn section_symbols(&self, section: &'s elf::SectionHeader) -> &'s [elf::Symbol] {
-        unsafe {
-            assert!(section.shtype == elf::SHT_SYMTAB);
-        }
-        unsafe {
-            slice_pod(
-                self.section_data(section),
-                0,
-                section.size as usize / size_of::<elf::Symbol>(),
-            )
-        }
+    /// Get the name of the sectione
+    pub fn symbol_name(&self, symbol: &'s Entry) -> &'s str {
+        symbol.get_name(&self.file).unwrap_or("unknown")
     }
 
     /// Enumerate all the symbols in the file
-    pub fn for_each_symbol<F: FnMut(&'s elf::Symbol)>(&self, mut func: F) {
-        for sym in self
-            .section_headers()
-            .iter()
-            .filter(|s| unsafe { s.shtype == elf::SHT_SYMTAB })
-            .flat_map(|s| self.section_symbols(s).iter())
-        {
-            func(sym);
+    pub fn for_each_symbol<F: FnMut(&'s Entry)>(&self, mut func: F) -> Result<(), &'static str> {
+        let symbol_section = self
+            .file
+            .find_section_by_name(".symtab")
+            .ok_or("No .symtab section")?;
+        let symbol_table = symbol_section.get_data(&self.file)?;
+        if let SectionData::SymbolTable64(entries) = symbol_table {
+            for entry in entries {
+                trace!("entry {:?}", entry);
+                func(entry);
+            }
+            Ok(())
+        } else {
+            Err(".symtab does not contain a symbol table")
         }
     }
-
-    /// Create a slice of the section headers.
-    pub fn section_headers(&self) -> &'s [elf::SectionHeader] {
-        let correct_header_size = self.header.shentsize as usize == size_of::<elf::SectionHeader>();
-        let sheader_region_size = self.header.shoff as usize
-            + self.header.shnum as usize * self.header.shentsize as usize;
-        let big_enough_region = self.region.len() >= sheader_region_size;
-
-        if self.header.shoff == 0 || !correct_header_size || !big_enough_region {
-            return &[];
-        }
-
-        unsafe {
-            slice_pod(
-                self.region,
-                self.header.shoff as usize,
-                self.header.shnum as usize,
-            )
-        }
-    }*/
 
     /// Can we load this binary on our platform?
     fn is_loadable(&self) -> Result<(), &'static str> {
@@ -265,17 +222,11 @@ impl<'s> ElfBinary<'s> {
         }
     }
 
-    /// Loads a program header of type LOAD.
+    /// Process the relocation entries for a given program header `loaded_header`
+    /// issues call to `loader.relocate` and passes the relocation entry.
     ///
-    /// Requests that memory is allocated.
-    /// Then copies the elf region into the allocated memory.
-    fn load_header(&self, p: &ProgramHeader64, loader: &mut ElfLoader) -> Result<(), &'static str> {
-        loader.allocate(p.virtual_addr, p.mem_size as usize, p.flags)?;
-        loader.load(p.virtual_addr, p.raw_data(&self.file))?;
-        self.maybe_relocate(p, loader)?;
-        Ok(())
-    }
-
+    /// TODO: This currently processes all relocation entries rather than only
+    /// those for `loaded_header`?
     fn maybe_relocate(
         &self,
         loaded_header: &ProgramHeader64,
@@ -292,6 +243,9 @@ impl<'s> ElfBinary<'s> {
             // Now we finally have a list of relocation we're supposed to perform:
             for entry in rela_entries {
                 let _typ = TypeRela64::from(entry.get_type());
+                // Does the entry blong to the current header?
+                let header_start = loaded_header.virtual_addr;
+                let header_end = loaded_header.virtual_addr + loaded_header.mem_size;
                 loader.relocate(entry, loaded_header.virtual_addr)?;
             }
 
@@ -347,16 +301,14 @@ impl<'s> ElfBinary<'s> {
         Ok(())
     }
 
-    /// Processing the program headers of type LOAD and DYNAMIC
+    /// Processing the program headers and issue commands to loader.
     ///
-    /// LOAD: Will create space in the address space / region where the
-    /// header is supposed to go and then copy it there.
-    ///
-    /// DYNAMIC: Will fix up symbols using in the loaded sections
-    /// for position independent code.
+    /// Will tell loader to create space in the address space / region where the
+    /// header is supposed to go, then copy it there, and finally relocate it.
     pub fn load(&self, loader: &mut ElfLoader) -> Result<(), &'static str> {
         self.is_loadable()?;
 
+        // Allocate all headers
         for p in self.file.program_iter() {
             match p {
                 Ph32(_) => {
@@ -366,11 +318,38 @@ impl<'s> ElfBinary<'s> {
                 Ph64(header) => {
                     let typ = header.get_type()?;
                     if typ == Type::Load {
-                        self.load_header(header, loader)?;
+                        loader.allocate(
+                            header.virtual_addr,
+                            header.mem_size as usize,
+                            header.flags,
+                        )?;
                     } else if typ == Type::Dynamic {
                         self.check_dynamic(header, loader)?;
                     }
                 }
+            }
+        }
+
+        // Load all headers
+        for p in self.file.program_iter() {
+            if let Ph64(header) = p {
+                let typ = header.get_type()?;
+                if typ == Type::Load {
+                    loader.load(header.virtual_addr, header.raw_data(&self.file))?;
+                }
+            }
+        }
+
+        /// Relocate headers
+        for p in self.file.program_iter() {
+            if let Ph64(header) = p {
+                let typ = header.get_type()?;
+                if typ == Type::Load {
+                    self.maybe_relocate(header, loader)?;
+                    return Ok(());
+                }
+            } else {
+                panic!("got haeder ph32");
             }
         }
 
