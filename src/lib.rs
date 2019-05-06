@@ -137,15 +137,23 @@ impl<'s> fmt::Debug for ElfBinary<'s> {
     }
 }
 
-/// Implement this for ELF loading.
+/// Implement this trait for customized ELF loading.
+///
+/// The flow of ElfBinary is that it first calls `allocate` for all regions
+/// that need to be allocated (i.e., the LOAD program headers of the ELF binary),
+/// then `load` will be called to fill the allocated regions, and finally
+/// `relocate` is called for every entry in the RELA table.
 pub trait ElfLoader {
-    /// Allocates a virtual region of size amount of bytes.
+    /// Allocates a virtual region of `size` bytes at address `base`.
     fn allocate(&mut self, base: VAddr, size: usize, flags: Flags) -> Result<(), &'static str>;
 
-    /// Copies the region into the base.
+    /// Copies `region` into memory starting at `base`.
+    /// The caller makes sure that there was an `allocate` call previously
+    /// to initialize the region.
     fn load(&mut self, base: VAddr, region: &[u8]) -> Result<(), &'static str>;
 
-    /// Relocate `entry` within the loaded ELF `header.
+    /// Request for the client to relocate the given `entry`
+    /// within the loaded ELF file.
     fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str>;
 }
 
@@ -222,11 +230,9 @@ impl<'s> ElfBinary<'s> {
         }
     }
 
-    /// Process the relocation entries for a given program header `loaded_header`
-    /// issues call to `loader.relocate` and passes the relocation entry.
+    /// Process the relocation entries for the ELF file.
     ///
-    /// TODO: This currently processes all relocation entries rather than only
-    /// those for `loaded_header`?
+    /// Issues call to `loader.relocate` and passes the relocation entry.
     fn maybe_relocate(&self, loader: &mut ElfLoader) -> Result<(), &'static str> {
         // It's easier to just locate the section by name:
         let rela_section_dyn = self
@@ -251,7 +257,7 @@ impl<'s> ElfBinary<'s> {
 
     /// Processes a dynamic header section.
     ///
-    /// This section contains mostly entry point to other section headers (like relocation).
+    /// This section contains mostly entry points to other section headers (like relocation).
     /// At the moment this just does sanity checking for relocation later.
     fn check_dynamic(
         &self,
@@ -343,11 +349,8 @@ impl<'s> ElfBinary<'s> {
 
 #[cfg(test)]
 mod test {
-
     use crate::*;
-
     use std::fs;
-
     use std::vec::Vec;
 
     #[derive(Eq, Clone, PartialEq, Copy, Debug)]
