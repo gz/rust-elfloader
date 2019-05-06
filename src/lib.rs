@@ -146,7 +146,7 @@ pub trait ElfLoader {
     fn load(&mut self, base: VAddr, region: &[u8]) -> Result<(), &'static str>;
 
     /// Relocate `entry` within the loaded ELF `header.
-    fn relocate(&mut self, entry: &Rela<P64>, original_base: u64) -> Result<(), &'static str>;
+    fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str>;
 }
 
 impl<'s> ElfBinary<'s> {
@@ -157,7 +157,7 @@ impl<'s> ElfBinary<'s> {
     pub fn new(name: &'s str, region: &'s [u8]) -> Result<ElfBinary<'s>, &'static str> {
         let elf_file = ElfFile::new(region)?;
         Ok(ElfBinary {
-            name: name,
+            name,
             file: elf_file,
         })
     }
@@ -227,11 +227,7 @@ impl<'s> ElfBinary<'s> {
     ///
     /// TODO: This currently processes all relocation entries rather than only
     /// those for `loaded_header`?
-    fn maybe_relocate(
-        &self,
-        loaded_header: &ProgramHeader64,
-        loader: &mut ElfLoader,
-    ) -> Result<(), &'static str> {
+    fn maybe_relocate(&self, loader: &mut ElfLoader) -> Result<(), &'static str> {
         // It's easier to just locate the section by name:
         let rela_section_dyn = self
             .file
@@ -244,9 +240,7 @@ impl<'s> ElfBinary<'s> {
             for entry in rela_entries {
                 let _typ = TypeRela64::from(entry.get_type());
                 // Does the entry blong to the current header?
-                let header_start = loaded_header.virtual_addr;
-                let header_end = loaded_header.virtual_addr + loaded_header.mem_size;
-                loader.relocate(entry, loaded_header.virtual_addr)?;
+                loader.relocate(entry)?;
             }
 
             Ok(())
@@ -340,18 +334,8 @@ impl<'s> ElfBinary<'s> {
             }
         }
 
-        /// Relocate headers
-        for p in self.file.program_iter() {
-            if let Ph64(header) = p {
-                let typ = header.get_type()?;
-                if typ == Type::Load {
-                    self.maybe_relocate(header, loader)?;
-                    return Ok(());
-                }
-            } else {
-                panic!("got haeder ph32");
-            }
-        }
+        // Relocate headers
+        self.maybe_relocate(loader)?;
 
         Ok(())
     }
@@ -396,10 +380,8 @@ mod test {
             Ok(())
         }
 
-        fn relocate(&mut self, entry: &Rela<P64>, original_base: u64) -> Result<(), &'static str> {
+        fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str> {
             let typ = TypeRela64::from(entry.get_type());
-            assert!(self.vbase >= original_base);
-            let relocation_difference = self.vbase - original_base;
 
             // Get the pointer to where the relocation happens in the
             // memory where we loaded the headers
@@ -409,9 +391,7 @@ mod test {
             // get_offset(): For an executable or shared object, the value indicates
             // the virtual address of the storage unit affected by the relocation.
             // This information makes the relocation entries more useful for the runtime linker.
-            //
-            // Original base: The vaddr of the program header.
-            let addr: *mut u64 = (self.vbase + original_base + entry.get_offset()) as *mut u64;
+            let addr: *mut u64 = (self.vbase + entry.get_offset()) as *mut u64;
 
             match typ {
                 TypeRela64::R_64 => {
@@ -423,12 +403,12 @@ mod test {
                     // binary in the vspace) to the addend and we're done.
                     self.actions.push(LoaderAction::Relocate(
                         addr as u64,
-                        relocation_difference + entry.get_addend(),
+                        self.vbase + entry.get_addend(),
                     ));
                     trace!(
                         "R_RELATIVE *{:p} = {:#x}",
                         addr,
-                        relocation_difference + entry.get_addend()
+                        self.vbase + entry.get_addend()
                     );
                     Ok(())
                 }
@@ -452,15 +432,6 @@ mod test {
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
     }
-
-    /*
-    fn load_rust_pie_elf() {
-        init();
-        let binary_blob = fs::read("kernel").expect("Can't read binary");
-        let binary = ElfBinary::new("test", binary_blob.as_slice()).expect("Got proper ELF file");
-        let mut loader = TestLoader::new(0xf0000_0000);
-        binary.load(&mut loader).expect("Can't load?");
-    }*/
 
     #[test]
     fn load_pie_elf() {
