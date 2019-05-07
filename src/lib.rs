@@ -155,6 +155,16 @@ pub trait ElfLoader {
     /// Request for the client to relocate the given `entry`
     /// within the loaded ELF file.
     fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str>;
+
+    /// In case there is a `.data.rel.ro` section we instruct the loader
+    /// to change the passed offset to read-only (this is called after
+    /// the relocate calls are completed).
+    ///
+    /// Note: The default implementation is a no-op since this is
+    /// not strictly necessary to implement.
+    fn make_readonly(&mut self, _base: VAddr, _size: usize) -> Result<(), &'static str> {
+        Ok(())
+    }
 }
 
 impl<'s> ElfBinary<'s> {
@@ -264,7 +274,7 @@ impl<'s> ElfBinary<'s> {
         p: &ProgramHeader64,
         _loader: &mut ElfLoader,
     ) -> Result<(), &'static str> {
-        info!("load dynamic segement {:?}", p);
+        trace!("load dynamic segement {:?}", p);
 
         // Walk through the dynamic program header and find the rela and sym_tab section offsets:
         let segment = p.get_data(&self.file)?;
@@ -342,6 +352,16 @@ impl<'s> ElfBinary<'s> {
 
         // Relocate headers
         self.maybe_relocate(loader)?;
+
+        // Process .data.rel.ro
+        for p in self.file.program_iter() {
+            if let Ph64(header) = p {
+                let typ = header.get_type()?;
+                if typ == Type::GnuRelro {
+                    loader.make_readonly(header.virtual_addr, header.mem_size as usize)?;
+                }
+            }
+        }
 
         Ok(())
     }
