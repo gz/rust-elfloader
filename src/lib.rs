@@ -18,15 +18,18 @@ use core::fmt;
 use xmas_elf::dynamic::Tag;
 use xmas_elf::header;
 use xmas_elf::program::ProgramHeader::{Ph32, Ph64};
-use xmas_elf::program::{ProgramHeader64, ProgramIter, SegmentData, Type};
+use xmas_elf::program::{ProgramIter, SegmentData, Type};
 use xmas_elf::sections::SectionData;
 use xmas_elf::*;
 
-pub use xmas_elf::program::Flags;
+pub use xmas_elf::program::{Flags, ProgramHeader, ProgramHeader64};
 pub use xmas_elf::sections::Rela;
 pub use xmas_elf::symbol_table::{Entry, Entry64};
 pub use xmas_elf::{P32, P64};
 
+use core::iter::Filter;
+
+pub type LoadableHeaders<'a, 'b> = Filter<ProgramIter<'a, 'b>, fn(&ProgramHeader) -> bool>;
 pub type PAddr = u64;
 pub type VAddr = u64;
 
@@ -145,7 +148,7 @@ impl<'s> fmt::Debug for ElfBinary<'s> {
 /// `relocate` is called for every entry in the RELA table.
 pub trait ElfLoader {
     /// Allocates a virtual region of `size` bytes at address `base`.
-    fn allocate(&mut self, base: VAddr, size: usize, flags: Flags) -> Result<(), &'static str>;
+    fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str>;
 
     /// Copies `region` into memory starting at `base`.
     /// The caller makes sure that there was an `allocate` call previously
@@ -318,7 +321,29 @@ impl<'s> ElfBinary<'s> {
     pub fn load(&self, loader: &mut ElfLoader) -> Result<(), &'static str> {
         self.is_loadable()?;
 
-        // Allocate all headers
+        // Trying to determine loadeable headers
+        fn select_load(&pheader: &ProgramHeader) -> bool {
+            if let Ph64(header) = pheader {
+                header
+                    .get_type()
+                    .map(|typ| typ == Type::Load)
+                    .unwrap_or(false)
+            } else {
+                false
+            }
+        }
+
+        // Create an iterator (well filter really) that has all loadeable
+        // headers and pass it to the loader
+        // TODO: This is pretty ugly, maybe we can do something with impl Trait?
+        // https://stackoverflow.com/questions/27535289/what-is-the-correct-way-to-return-an-iterator-or-any-other-trait
+        let load_iter = self
+            .file
+            .program_iter()
+            .filter(select_load as fn(&ProgramHeader) -> bool);
+        loader.allocate(load_iter)?;
+
+        // Sanity check the dynamic section
         for p in self.file.program_iter() {
             match p {
                 Ph32(_) => {
@@ -327,13 +352,7 @@ impl<'s> ElfBinary<'s> {
                 }
                 Ph64(header) => {
                     let typ = header.get_type()?;
-                    if typ == Type::Load {
-                        loader.allocate(
-                            header.virtual_addr,
-                            header.mem_size as usize,
-                            header.flags,
-                        )?;
-                    } else if typ == Type::Dynamic {
+                    if typ == Type::Dynamic {
                         self.check_dynamic(header, loader)?;
                     }
                 }
@@ -394,12 +413,21 @@ mod test {
     }
 
     impl ElfLoader for TestLoader {
-        fn allocate(&mut self, base: VAddr, size: usize, flags: Flags) -> Result<(), &'static str> {
-            info!(
-                "allocate base = {:#x} size = {:#x} flags = {}",
-                base, size, flags
-            );
-            self.actions.push(LoaderAction::Allocate(base, size, flags));
+        fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
+            for header in load_headers {
+                info!(
+                    "allocate base = {:#x} size = {:#x} flags = {}",
+                    header.virtual_addr(),
+                    header.mem_size(),
+                    header.flags()
+                );
+
+                self.actions.push(LoaderAction::Allocate(
+                    header.virtual_addr(),
+                    header.mem_size() as usize,
+                    header.flags(),
+                ));
+            }
             Ok(())
         }
 
