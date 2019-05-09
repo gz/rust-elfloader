@@ -209,7 +209,7 @@ impl<'s> ElfBinary<'s> {
         let symbol_table = symbol_section.get_data(&self.file)?;
         if let SectionData::SymbolTable64(entries) = symbol_table {
             for entry in entries {
-                trace!("entry {:?}", entry);
+                //trace!("entry {:?}", entry);
                 func(entry);
             }
             Ok(())
