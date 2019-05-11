@@ -127,7 +127,7 @@ impl TypeRela64 {
 /// Abstract representation of a loadable ELF binary.
 pub struct ElfBinary<'s> {
     name: &'s str,
-    file: ElfFile<'s>,
+    pub file: ElfFile<'s>,
 }
 
 impl<'s> fmt::Debug for ElfBinary<'s> {
