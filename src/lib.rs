@@ -248,24 +248,25 @@ impl<'s> ElfBinary<'s> {
     /// Issues call to `loader.relocate` and passes the relocation entry.
     fn maybe_relocate(&self, loader: &mut ElfLoader) -> Result<(), &'static str> {
         // It's easier to just locate the section by name:
-        let rela_section_dyn = self
-            .file
+        self.file
             .find_section_by_name(".rela.dyn")
-            .ok_or("No .rela.dyn section")?;
+            .map(|rela_section_dyn| {
+                let data = rela_section_dyn.get_data(&self.file)?;
+                if let SectionData::Rela64(rela_entries) = data {
+                    // Now we finally have a list of relocation we're supposed to perform:
+                    for entry in rela_entries {
+                        let _typ = TypeRela64::from(entry.get_type());
+                        // Does the entry blong to the current header?
+                        loader.relocate(entry)?;
+                    }
 
-        let data = rela_section_dyn.get_data(&self.file)?;
-        if let SectionData::Rela64(rela_entries) = data {
-            // Now we finally have a list of relocation we're supposed to perform:
-            for entry in rela_entries {
-                let _typ = TypeRela64::from(entry.get_type());
-                // Does the entry blong to the current header?
-                loader.relocate(entry)?;
-            }
+                    return Ok(());
+                } else {
+                    return Err("Unexpected Section Data: was not Rela64");
+                }
+            });
 
-            Ok(())
-        } else {
-            return Err("Unexpected Section Data: was not Rela64");
-        }
+        Ok(()) // No .rela.dyn section found
     }
 
     /// Processes a dynamic header section.
@@ -301,17 +302,15 @@ impl<'s> ElfBinary<'s> {
         trace!("rela size {:?} rela off {:?}", rela_size, rela);
 
         // It's easier to just locate the section by name:
-        let rela_section_dyn = self
-            .file
+        self.file
             .find_section_by_name(".rela.dyn")
-            .ok_or("No .rela.dyn section")?;
-
-        // For sanity we still check it's size is the same as reported in DYNAMIC
-        if rela_size != rela_section_dyn.size() || rela != rela_section_dyn.offset() {
-            return Err("Dynamic offset/size doesn't match with .rela.dyn entries");
-        }
-
-        Ok(())
+            .map_or(Ok(()), |rela_section_dyn| {
+                // For sanity we still check it's size is the same as reported in DYNAMIC
+                if rela_size != rela_section_dyn.size() || rela != rela_section_dyn.offset() {
+                    return Err("Dynamic offset/size doesn't match with .rela.dyn entries");
+                }
+                Ok(())
+            })
     }
 
     /// Processing the program headers and issue commands to loader.
