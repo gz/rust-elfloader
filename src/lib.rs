@@ -196,12 +196,15 @@ impl<'s> ElfBinary<'s> {
     }
 
     /// Get the name of the sectione
-    pub fn symbol_name(&self, symbol: &'s Entry) -> &'s str {
+    pub fn symbol_name(&self, symbol: &'s dyn Entry) -> &'s str {
         symbol.get_name(&self.file).unwrap_or("unknown")
     }
 
     /// Enumerate all the symbols in the file
-    pub fn for_each_symbol<F: FnMut(&'s Entry)>(&self, mut func: F) -> Result<(), &'static str> {
+    pub fn for_each_symbol<F: FnMut(&'s dyn Entry)>(
+        &self,
+        mut func: F,
+    ) -> Result<(), &'static str> {
         let symbol_section = self
             .file
             .find_section_by_name(".symtab")
@@ -246,7 +249,7 @@ impl<'s> ElfBinary<'s> {
     /// Process the relocation entries for the ELF file.
     ///
     /// Issues call to `loader.relocate` and passes the relocation entry.
-    fn maybe_relocate(&self, loader: &mut ElfLoader) -> Result<(), &'static str> {
+    fn maybe_relocate(&self, loader: &mut dyn ElfLoader) -> Result<(), &'static str> {
         // It's easier to just locate the section by name:
         self.file
             .find_section_by_name(".rela.dyn")
@@ -276,7 +279,7 @@ impl<'s> ElfBinary<'s> {
     fn check_dynamic(
         &self,
         p: &ProgramHeader64,
-        _loader: &mut ElfLoader,
+        _loader: &mut dyn ElfLoader,
     ) -> Result<(), &'static str> {
         trace!("load dynamic segement {:?}", p);
 
@@ -317,7 +320,7 @@ impl<'s> ElfBinary<'s> {
     ///
     /// Will tell loader to create space in the address space / region where the
     /// header is supposed to go, then copy it there, and finally relocate it.
-    pub fn load(&self, loader: &mut ElfLoader) -> Result<(), &'static str> {
+    pub fn load(&self, loader: &mut dyn ElfLoader) -> Result<(), &'static str> {
         self.is_loadable()?;
 
         // Trying to determine loadeable headers
