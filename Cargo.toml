@@ -10,7 +10,7 @@ readme = "README.md"
 
 [dependencies]
 log = "0.4"
-xmas-elf = { git = "https://github.com/gz/xmas-elf.git" }
+xmas-elf = "0.7"
 
 [target.'cfg(target_family = "unix")'.dev-dependencies]
 env_logger = "*"
