@@ -7,10 +7,12 @@ license = "MIT/Apache-2.0"
 description = "A rust library to load ELF files."
 keywords = ["elf", "x86", "os"]
 readme = "README.md"
+edition = "2018"
 
 [dependencies]
 log = "0.4"
 xmas-elf = "0.7"
+bitflags = "1.2"
 
 [target.'cfg(target_family = "unix")'.dev-dependencies]
 env_logger = "0.7.1"

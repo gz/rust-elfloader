@@ -8,16 +8,14 @@ extern crate std;
 #[cfg(test)]
 extern crate env_logger;
 
-extern crate log;
-extern crate xmas_elf;
-
-use log::*;
-
 use core::fmt;
 
-use xmas_elf::dynamic::Tag;
+use bitflags::bitflags;
+use log::*;
+
+use xmas_elf::dynamic::*;
 use xmas_elf::header;
-use xmas_elf::program::ProgramHeader::{Ph32, Ph64};
+use xmas_elf::program::ProgramHeader::Ph64;
 use xmas_elf::program::{ProgramIter, SegmentData, Type};
 use xmas_elf::sections::SectionData;
 use xmas_elf::*;
@@ -124,10 +122,55 @@ impl TypeRela64 {
     }
 }
 
+bitflags! {
+    #[derive(Default)]
+    pub struct DynamicFlags1: u64 {
+        const NOW = FLAG_1_NOW;
+        const GLOBAL = FLAG_1_GLOBAL;
+        const GROUP = FLAG_1_GROUP;
+        const NODELETE = FLAG_1_NODELETE;
+        const LOADFLTR = FLAG_1_LOADFLTR;
+        const INITFIRST = FLAG_1_INITFIRST;
+        const NOOPEN = FLAG_1_NOOPEN;
+        const ORIGIN = FLAG_1_ORIGIN;
+        const DIRECT = FLAG_1_DIRECT;
+        const TRANS = FLAG_1_TRANS;
+        const INTERPOSE = FLAG_1_INTERPOSE;
+        const NODEFLIB = FLAG_1_NODEFLIB;
+        const NODUMP = FLAG_1_NODUMP;
+        const CONFALT = FLAG_1_CONFALT;
+        const ENDFILTEE = FLAG_1_ENDFILTEE;
+        const DISPRELDNE = FLAG_1_DISPRELDNE;
+        const DISPRELPND = FLAG_1_DISPRELPND;
+        const NODIRECT = FLAG_1_NODIRECT;
+        const IGNMULDEF = FLAG_1_IGNMULDEF;
+        const NOKSYMS = FLAG_1_NOKSYMS;
+        const NOHDR = FLAG_1_NOHDR;
+        const EDITED = FLAG_1_EDITED;
+        const NORELOC = FLAG_1_NORELOC;
+        const SYMINTPOSE = FLAG_1_SYMINTPOSE;
+        const GLOBAUDIT = FLAG_1_GLOBAUDIT;
+        const SINGLETON = FLAG_1_SINGLETON;
+        const STUB = FLAG_1_STUB;
+        const PIE = FLAG_1_PIE;
+    }
+}
+
+/// Information parse from the .dynamic section
+pub struct DynamicInfo {
+    pub flags1: DynamicFlags1,
+    pub rela: u64,
+    pub rela_size: u64,
+}
+
 /// Abstract representation of a loadable ELF binary.
 pub struct ElfBinary<'s> {
+    /// The filname of the binary.
     name: &'s str,
+    /// The ELF file in question.
     pub file: ElfFile<'s>,
+    /// Parsed information from the .dynamic section (if the binary has it).
+    pub dynamic: Option<DynamicInfo>,
 }
 
 impl<'s> fmt::Debug for ElfBinary<'s> {
@@ -172,14 +215,35 @@ pub trait ElfLoader {
 
 impl<'s> ElfBinary<'s> {
     /// Create a new ElfBinary.
-    /// Makes sure that the provided region has valid ELF magic byte sequence
-    /// and is big enough to contain at least the ELF file header
-    /// otherwise it will return None.
     pub fn new(name: &'s str, region: &'s [u8]) -> Result<ElfBinary<'s>, &'static str> {
-        let elf_file = ElfFile::new(region)?;
+        let file = ElfFile::new(region)?;
+
+        // Parse relevant parts out of the the .dynamic section
+        let mut dynamic = None;
+        for p in file.program_iter() {
+            if let Ph64(header) = p {
+                let typ = header.get_type()?;
+                if typ == Type::Dynamic {
+                    dynamic = ElfBinary::parse_dynamic(&file, header)?;
+                    break;
+                }
+            }
+        }
+
         Ok(ElfBinary {
             name,
-            file: elf_file,
+            file,
+            dynamic,
+        })
+    }
+
+    /// Returns true if the binary is compiled as position independent code or false otherwise.
+    ///
+    /// For the binary to be PIE it needs to have a .dynamic section with PIE set in the flags1
+    /// field.
+    pub fn is_pie(&self) -> bool {
+        self.dynamic.as_ref().map_or(false, |d: &DynamicInfo| {
+            d.flags1.contains(DynamicFlags1::PIE)
         })
     }
 
@@ -263,30 +327,32 @@ impl<'s> ElfBinary<'s> {
                         loader.relocate(entry)?;
                     }
 
-                    return Ok(());
+                    Ok(())
                 } else {
                     return Err("Unexpected Section Data: was not Rela64");
                 }
-            });
-
-        Ok(()) // No .rela.dyn section found
+            })
+            .unwrap()
     }
 
     /// Processes a dynamic header section.
     ///
     /// This section contains mostly entry points to other section headers (like relocation).
     /// At the moment this just does sanity checking for relocation later.
-    fn check_dynamic(
-        &self,
-        p: &ProgramHeader64,
-        _loader: &mut dyn ElfLoader,
-    ) -> Result<(), &'static str> {
-        trace!("load dynamic segement {:?}", p);
+    ///
+    /// A human readable version of the dynamic section is best obtained with `readelf -d <binary>`.
+    fn parse_dynamic(
+        file: &ElfFile,
+        dynamic_header: &ProgramHeader64,
+    ) -> Result<Option<DynamicInfo>, &'static str> {
+        trace!("load dynamic segement {:?}", dynamic_header);
 
         // Walk through the dynamic program header and find the rela and sym_tab section offsets:
-        let segment = p.get_data(&self.file)?;
-        let mut rela = 0;
-        let mut rela_size = 0;
+        let segment = dynamic_header.get_data(&file)?;
+        let mut flags1 = Default::default();
+        let mut rela: u64 = 0;
+        let mut rela_size: u64 = 0;
+
         match segment {
             SegmentData::Dynamic64(dyn_entries) => {
                 for dyn_entry in dyn_entries {
@@ -294,6 +360,10 @@ impl<'s> ElfBinary<'s> {
                     match tag {
                         Tag::Rela => rela = dyn_entry.get_ptr()?,
                         Tag::RelaSize => rela_size = dyn_entry.get_val()?,
+                        Tag::Flags1 => {
+                            flags1 =
+                                unsafe { DynamicFlags1::from_bits_unchecked(dyn_entry.get_val()?) };
+                        }
                         _ => trace!("unsupported {:?}", dyn_entry),
                     }
                 }
@@ -302,18 +372,19 @@ impl<'s> ElfBinary<'s> {
                 return Err("Segment for dynamic data was not Dynamic64?");
             }
         };
-        trace!("rela size {:?} rela off {:?}", rela_size, rela);
 
-        // It's easier to just locate the section by name:
-        self.file
-            .find_section_by_name(".rela.dyn")
-            .map_or(Ok(()), |rela_section_dyn| {
-                // For sanity we still check it's size is the same as reported in DYNAMIC
-                if rela_size != rela_section_dyn.size() || rela != rela_section_dyn.offset() {
-                    return Err("Dynamic offset/size doesn't match with .rela.dyn entries");
-                }
-                Ok(())
-            })
+        trace!(
+            "rela size {:?} rela off {:?} flags1 {:?}",
+            rela_size,
+            rela,
+            flags1
+        );
+
+        Ok(Some(DynamicInfo {
+            flags1,
+            rela,
+            rela_size,
+        }))
     }
 
     /// Processing the program headers and issue commands to loader.
@@ -344,22 +415,6 @@ impl<'s> ElfBinary<'s> {
             .program_iter()
             .filter(select_load as fn(&ProgramHeader) -> bool);
         loader.allocate(load_iter)?;
-
-        // Sanity check the dynamic section
-        for p in self.file.program_iter() {
-            match p {
-                Ph32(_) => {
-                    error!("Encountered 32-bit header in 64bit ELF?");
-                    return Err("Encountered 32-bit header");
-                }
-                Ph64(header) => {
-                    let typ = header.get_type()?;
-                    if typ == Type::Dynamic {
-                        self.check_dynamic(header, loader)?;
-                    }
-                }
-            }
-        }
 
         // Load all headers
         for p in self.file.program_iter() {
@@ -492,6 +547,8 @@ mod test {
         let binary_blob = fs::read("test/test").expect("Can't read binary");
         let binary = ElfBinary::new("test", binary_blob.as_slice()).expect("Got proper ELF file");
 
+        assert!(binary.is_pie());
+
         let mut loader = TestLoader::new(0x1000_0000);
         binary.load(&mut loader).expect("Can't load?");
 
@@ -527,5 +584,14 @@ mod test {
             .is_some());
 
         //info!("test {:#?}", loader.actions);
+    }
+
+    #[test]
+    fn check_nopie() {
+        init();
+        let binary_blob = fs::read("test/test_nopie").expect("Can't read binary");
+        let binary = ElfBinary::new("test", binary_blob.as_slice()).expect("Got proper ELF file");
+
+        assert!(!binary.is_pie());
     }
 }
