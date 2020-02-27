@@ -315,9 +315,9 @@ impl<'s> ElfBinary<'s> {
     /// Issues call to `loader.relocate` and passes the relocation entry.
     fn maybe_relocate(&self, loader: &mut dyn ElfLoader) -> Result<(), &'static str> {
         // It's easier to just locate the section by name:
-        self.file
-            .find_section_by_name(".rela.dyn")
-            .map(|rela_section_dyn| {
+        self.file.find_section_by_name(".rela.dyn").map_or(
+            Ok(()), // .rela.dyn section found
+            |rela_section_dyn| {
                 let data = rela_section_dyn.get_data(&self.file)?;
                 if let SectionData::Rela64(rela_entries) = data {
                     // Now we finally have a list of relocation we're supposed to perform:
@@ -329,10 +329,10 @@ impl<'s> ElfBinary<'s> {
 
                     Ok(())
                 } else {
-                    return Err("Unexpected Section Data: was not Rela64");
+                    Err("Unexpected Section Data: was not Rela64")
                 }
-            })
-            .unwrap()
+            },
+        )
     }
 
     /// Processes a dynamic header section.
