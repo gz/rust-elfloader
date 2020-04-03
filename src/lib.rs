@@ -202,6 +202,17 @@ pub trait ElfLoader {
     /// within the loaded ELF file.
     fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str>;
 
+    /// Inform client about where the initial TLS data is located.
+    fn tls(
+        &mut self,
+        _tdata_start: VAddr,
+        _tdata_length: u64,
+        _total_size: u64,
+        _align: u64,
+    ) -> Result<(), &'static str> {
+        Ok(())
+    }
+
     /// In case there is a `.data.rel.ro` section we instruct the loader
     /// to change the passed offset to read-only (this is called after
     /// the relocate calls are completed).
@@ -422,6 +433,13 @@ impl<'s> ElfBinary<'s> {
                 let typ = header.get_type()?;
                 if typ == Type::Load {
                     loader.load(header.virtual_addr, header.raw_data(&self.file))?;
+                } else if typ == Type::Tls {
+                    loader.tls(
+                        header.virtual_addr,
+                        header.file_size,
+                        header.mem_size,
+                        header.align,
+                    )?;
                 }
             }
         }
@@ -454,6 +472,7 @@ mod test {
         Allocate(VAddr, usize, Flags),
         Load(VAddr, usize),
         Relocate(VAddr, u64),
+        Tls(VAddr, u64, u64, u64),
     }
     struct TestLoader {
         vbase: VAddr,
@@ -532,7 +551,26 @@ mod test {
         fn load(&mut self, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
             info!("load base = {:#x} size = {:#x} region", base, region.len());
             self.actions.push(LoaderAction::Load(base, region.len()));
+            Ok(())
+        }
 
+        fn tls(
+            &mut self,
+            tdata_start: VAddr,
+            tdata_length: u64,
+            total_size: u64,
+            alignment: u64,
+        ) -> Result<(), &'static str> {
+            info!(
+                "tdata_start = {:#x} tdata_length = {:#x} total_size = {:#x} alignment = {:#}",
+                tdata_start, tdata_length, total_size, alignment
+            );
+            self.actions.push(LoaderAction::Tls(
+                tdata_start,
+                tdata_length,
+                total_size,
+                alignment,
+            ));
             Ok(())
         }
     }
@@ -593,5 +631,37 @@ mod test {
         let binary = ElfBinary::new("test", binary_blob.as_slice()).expect("Got proper ELF file");
 
         assert!(!binary.is_pie());
+    }
+
+    #[test]
+    fn check_tls() {
+        init();
+
+        let binary_blob = fs::read("test/tls").expect("Can't read binary");
+        let binary = ElfBinary::new("tls", binary_blob.as_slice()).expect("Got proper ELF file");
+        let mut loader = TestLoader::new(0x1000_0000);
+        binary.load(&mut loader).expect("Can't load?");
+        /*
+        TLS produces entries of this form:
+        pheader = Program header:
+        type:             Ok(Tls)
+        flags:              R
+        offset:           0xdb4
+        virtual address:  0x200db4
+        physical address: 0x200db4
+        file size:        0x4
+        memory size:      0x8
+        align:            0x4
+
+        File size is 0x4 because we have one tdata entry; memory size
+        is 8 because we also have one bss entry that needs to be written with zeroes.
+        So to initialize TLS: we allocate zeroed memory of size `memory size`, then copy
+        file size starting at virtual address in the beginning.
+        */
+        assert!(loader
+            .actions
+            .iter()
+            .find(|&&x| x == LoaderAction::Tls(VAddr::from(0x200db4u64), 0x4, 0x8, 0x4))
+            .is_some());
     }
 }

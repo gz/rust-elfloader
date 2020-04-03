@@ -7,6 +7,7 @@ libcore so it can be used in kernel level code, for example to
 load user-space programs.
 
 ## How-to use
+
 Clients will have to implement the ElfLoader trait:
 
 ```rust
@@ -54,6 +55,19 @@ impl ElfLoader for ExampleLoader {
         info!("load region into = {:#x} -- {:#x}", start, end);
         Ok(())
     }
+
+    fn tls(
+        &mut self,
+        tdata_start: VAddr,
+        _tdata_length: u64,
+        total_size: u64,
+        _align: u64
+    ) -> Result<(), &'static str> {
+        let tls_end = tdata_start +  total_size;
+        info!("Initial TLS region is at = {:#x} -- {:#x}", tdata_start, tls_end);
+        Ok(())
+    }
+
 }
 ```
 
