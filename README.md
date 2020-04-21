@@ -11,6 +11,8 @@ load user-space programs.
 Clients will have to implement the ElfLoader trait:
 
 ```rust
+use elfloader::*;
+
 /// A simple ExampleLoader, that implements ElfLoader
 /// but does nothing but logging
 struct ExampleLoader {
@@ -49,7 +51,7 @@ impl ElfLoader for ExampleLoader {
         }
     }
 
-    fn load(&mut self, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
+    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
         let start = self.vbase + base;
         let end = self.vbase + base + region.len();
         info!("load region into = {:#x} -- {:#x}", start, end);

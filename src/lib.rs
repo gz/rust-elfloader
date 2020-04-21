@@ -196,7 +196,7 @@ pub trait ElfLoader {
     /// Copies `region` into memory starting at `base`.
     /// The caller makes sure that there was an `allocate` call previously
     /// to initialize the region.
-    fn load(&mut self, base: VAddr, region: &[u8]) -> Result<(), &'static str>;
+    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str>;
 
     /// Request for the client to relocate the given `entry`
     /// within the loaded ELF file.
@@ -432,7 +432,11 @@ impl<'s> ElfBinary<'s> {
             if let Ph64(header) = p {
                 let typ = header.get_type()?;
                 if typ == Type::Load {
-                    loader.load(header.virtual_addr, header.raw_data(&self.file))?;
+                    loader.load(
+                        header.flags,
+                        header.virtual_addr,
+                        header.raw_data(&self.file),
+                    )?;
                 } else if typ == Type::Tls {
                     loader.tls(
                         header.virtual_addr,
@@ -548,7 +552,7 @@ mod test {
             }
         }
 
-        fn load(&mut self, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
+        fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
             info!("load base = {:#x} size = {:#x} region", base, region.len());
             self.actions.push(LoaderAction::Load(base, region.len()));
             Ok(())
