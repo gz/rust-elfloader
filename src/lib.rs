@@ -291,6 +291,12 @@ impl<'s> ElfBinary<'s> {
                 func(entry);
             }
             Ok(())
+        } else if let SectionData::SymbolTable32(entries) = symbol_table {
+            for entry in entries {
+                //trace!("entry {:?}", entry);
+                func(entry);
+            }
+            Ok(())
         } else {
             Err(".symtab does not contain a symbol table")
         }
