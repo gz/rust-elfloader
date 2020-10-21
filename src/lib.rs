@@ -320,8 +320,6 @@ impl<'s> ElfBinary<'s> {
         } else if !(typ == header::Type::Executable || typ == header::Type::SharedObject) {
             error!("Invalid ELF type {:?}", typ);
             Err("Invalid ELF type")
-        } else if header.pt2.machine().as_machine() != header::Machine::X86_64 {
-            Err("ELF file is not for x86-64 machine")
         } else {
             Ok(())
         }
