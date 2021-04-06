@@ -190,7 +190,7 @@ impl<'s> fmt::Debug for ElfBinary<'s> {
 /// then `load` will be called to fill the allocated regions, and finally
 /// `relocate` is called for every entry in the RELA table.
 pub trait ElfLoader {
-    /// Allocates a virtual region of `size` bytes at address `base`.
+    /// Allocates a virtual region specified by `load_headers`.
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str>;
 
     /// Copies `region` into memory starting at `base`.
