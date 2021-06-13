@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/gz/rust-elfloader.svg?branch=master)](https://travis-ci.org/gz/rust-elfloader)
+![Build](https://github.com/gz/rust-elfloader/actions/workflows/standard.yml/badge.svg)
 
 # elfloader
 
