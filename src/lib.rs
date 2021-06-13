@@ -9,10 +9,10 @@ extern crate std;
 extern crate env_logger;
 
 use core::fmt;
+use core::iter::Filter;
 
 use bitflags::bitflags;
 use log::*;
-
 use xmas_elf::dynamic::*;
 use xmas_elf::header;
 use xmas_elf::program::ProgramHeader::Ph64;
@@ -25,11 +25,46 @@ pub use xmas_elf::sections::Rela;
 pub use xmas_elf::symbol_table::{Entry, Entry64};
 pub use xmas_elf::{P32, P64};
 
-use core::iter::Filter;
-
 pub type LoadableHeaders<'a, 'b> = Filter<ProgramIter<'a, 'b>, fn(&ProgramHeader) -> bool>;
 pub type PAddr = u64;
 pub type VAddr = u64;
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum ElfLoaderErr {
+    ElfParser { source: &'static str },
+    SymbolTableNotFound,
+    UnsupportedElfFormat,
+    UnsupportedElfVersion,
+    UnsupportedEndianness,
+    UnsupportedAbi,
+    UnsupportedElfType,
+    UnsupportedSectionData,
+    UnsupportedRelocationEntry,
+}
+
+impl From<&'static str> for ElfLoaderErr {
+    fn from(source: &'static str) -> Self {
+        ElfLoaderErr::ElfParser { source }
+    }
+}
+
+impl fmt::Display for ElfLoaderErr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ElfLoaderErr::ElfParser { source } => write!(f, "Error in ELF parser: {}", source),
+            ElfLoaderErr::SymbolTableNotFound => write!(f, "No symbol table in the ELF file"),
+            ElfLoaderErr::UnsupportedElfFormat => write!(f, "ELF format not supported"),
+            ElfLoaderErr::UnsupportedElfVersion => write!(f, "ELF version not supported"),
+            ElfLoaderErr::UnsupportedEndianness => write!(f, "ELF endianness not supported"),
+            ElfLoaderErr::UnsupportedAbi => write!(f, "ELF ABI not supported"),
+            ElfLoaderErr::UnsupportedElfType => write!(f, "ELF type not supported"),
+            ElfLoaderErr::UnsupportedSectionData => write!(f, "Can't handle this section data"),
+            ElfLoaderErr::UnsupportedRelocationEntry => {
+                write!(f, "Can't handle relocation entry")
+            }
+        }
+    }
+}
 
 // Should be in xmas-elf see: https://github.com/nrc/xmas-elf/issues/54
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
@@ -189,16 +224,16 @@ impl<'s> fmt::Debug for ElfBinary<'s> {
 /// `relocate` is called for every entry in the RELA table.
 pub trait ElfLoader {
     /// Allocates a virtual region specified by `load_headers`.
-    fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str>;
+    fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), ElfLoaderErr>;
 
     /// Copies `region` into memory starting at `base`.
     /// The caller makes sure that there was an `allocate` call previously
     /// to initialize the region.
-    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str>;
+    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr>;
 
     /// Request for the client to relocate the given `entry`
     /// within the loaded ELF file.
-    fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str>;
+    fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), ElfLoaderErr>;
 
     /// Inform client about where the initial TLS data is located.
     fn tls(
@@ -207,7 +242,7 @@ pub trait ElfLoader {
         _tdata_length: u64,
         _total_size: u64,
         _align: u64,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), ElfLoaderErr> {
         Ok(())
     }
 
@@ -217,14 +252,14 @@ pub trait ElfLoader {
     ///
     /// Note: The default implementation is a no-op since this is
     /// not strictly necessary to implement.
-    fn make_readonly(&mut self, _base: VAddr, _size: usize) -> Result<(), &'static str> {
+    fn make_readonly(&mut self, _base: VAddr, _size: usize) -> Result<(), ElfLoaderErr> {
         Ok(())
     }
 }
 
 impl<'s> ElfBinary<'s> {
     /// Create a new ElfBinary.
-    pub fn new(region: &'s [u8]) -> Result<ElfBinary<'s>, &'static str> {
+    pub fn new(region: &'s [u8]) -> Result<ElfBinary<'s>, ElfLoaderErr> {
         let file = ElfFile::new(region)?;
 
         // Parse relevant parts out of the the .dynamic section
@@ -273,11 +308,11 @@ impl<'s> ElfBinary<'s> {
     pub fn for_each_symbol<F: FnMut(&'s dyn Entry)>(
         &self,
         mut func: F,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), ElfLoaderErr> {
         let symbol_section = self
             .file
             .find_section_by_name(".symtab")
-            .ok_or("No .symtab section")?;
+            .ok_or(ElfLoaderErr::SymbolTableNotFound)?;
         let symbol_table = symbol_section.get_data(&self.file)?;
         if let SectionData::SymbolTable64(entries) = symbol_table {
             for entry in entries {
@@ -292,28 +327,28 @@ impl<'s> ElfBinary<'s> {
             }
             Ok(())
         } else {
-            Err(".symtab does not contain a symbol table")
+            Err(ElfLoaderErr::SymbolTableNotFound)
         }
     }
 
     /// Can we load this binary on our platform?
-    fn is_loadable(&self) -> Result<(), &'static str> {
+    fn is_loadable(&self) -> Result<(), ElfLoaderErr> {
         let header = self.file.header;
         let typ = header.pt2.type_().as_type();
 
         if header.pt1.class() != header::Class::SixtyFour {
-            Err("Not 64bit ELF")
+            Err(ElfLoaderErr::UnsupportedElfFormat)
         } else if header.pt1.version() != header::Version::Current {
-            Err("Invalid version")
+            Err(ElfLoaderErr::UnsupportedElfVersion)
         } else if header.pt1.data() != header::Data::LittleEndian {
-            Err("Wrong Endianness")
+            Err(ElfLoaderErr::UnsupportedEndianness)
         } else if !(header.pt1.os_abi() == header::OsAbi::SystemV
             || header.pt1.os_abi() == header::OsAbi::Linux)
         {
-            Err("Wrong ABI")
+            Err(ElfLoaderErr::UnsupportedAbi)
         } else if !(typ == header::Type::Executable || typ == header::Type::SharedObject) {
             error!("Invalid ELF type {:?}", typ);
-            Err("Invalid ELF type")
+            Err(ElfLoaderErr::UnsupportedElfType)
         } else {
             Ok(())
         }
@@ -322,7 +357,7 @@ impl<'s> ElfBinary<'s> {
     /// Process the relocation entries for the ELF file.
     ///
     /// Issues call to `loader.relocate` and passes the relocation entry.
-    fn maybe_relocate(&self, loader: &mut dyn ElfLoader) -> Result<(), &'static str> {
+    fn maybe_relocate(&self, loader: &mut dyn ElfLoader) -> Result<(), ElfLoaderErr> {
         // It's easier to just locate the section by name:
         self.file.find_section_by_name(".rela.dyn").map_or(
             Ok(()), // .rela.dyn section found
@@ -338,7 +373,7 @@ impl<'s> ElfBinary<'s> {
 
                     Ok(())
                 } else {
-                    Err("Unexpected Section Data: was not Rela64")
+                    Err(ElfLoaderErr::UnsupportedSectionData)
                 }
             },
         )
@@ -353,7 +388,7 @@ impl<'s> ElfBinary<'s> {
     fn parse_dynamic(
         file: &ElfFile,
         dynamic_header: &ProgramHeader64,
-    ) -> Result<Option<DynamicInfo>, &'static str> {
+    ) -> Result<Option<DynamicInfo>, ElfLoaderErr> {
         trace!("load dynamic segement {:?}", dynamic_header);
 
         // Walk through the dynamic program header and find the rela and sym_tab section offsets:
@@ -378,7 +413,7 @@ impl<'s> ElfBinary<'s> {
                 }
             }
             _ => {
-                return Err("Segment for dynamic data was not Dynamic64?");
+                return Err(ElfLoaderErr::UnsupportedSectionData);
             }
         };
 
@@ -400,7 +435,7 @@ impl<'s> ElfBinary<'s> {
     ///
     /// Will tell loader to create space in the address space / region where the
     /// header is supposed to go, then copy it there, and finally relocate it.
-    pub fn load(&self, loader: &mut dyn ElfLoader) -> Result<(), &'static str> {
+    pub fn load(&self, loader: &mut dyn ElfLoader) -> Result<(), ElfLoaderErr> {
         self.is_loadable()?;
 
         // Trying to determine loadeable headers
@@ -491,7 +526,7 @@ mod test {
     }
 
     impl ElfLoader for TestLoader {
-        fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
+        fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), ElfLoaderErr> {
             for header in load_headers {
                 info!(
                     "allocate base = {:#x} size = {:#x} flags = {}",
@@ -509,7 +544,7 @@ mod test {
             Ok(())
         }
 
-        fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str> {
+        fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), ElfLoaderErr> {
             let typ = TypeRela64::from(entry.get_type());
 
             // Get the pointer to where the relocation happens in the
@@ -546,11 +581,11 @@ mod test {
                     Ok(())
                 }
                 TypeRela64::R_NONE => Ok(()),
-                _ => Err("Unexpected relocation encountered"),
+                _ => Err(ElfLoaderErr::UnsupportedRelocationEntry),
             }
         }
 
-        fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
+        fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
             info!("load base = {:#x} size = {:#x} region", base, region.len());
             self.actions.push(LoaderAction::Load(base, region.len()));
             Ok(())
@@ -562,7 +597,7 @@ mod test {
             tdata_length: u64,
             total_size: u64,
             alignment: u64,
-        ) -> Result<(), &'static str> {
+        ) -> Result<(), ElfLoaderErr> {
             info!(
                 "tdata_start = {:#x} tdata_length = {:#x} total_size = {:#x} alignment = {:#}",
                 tdata_start, tdata_length, total_size, alignment
