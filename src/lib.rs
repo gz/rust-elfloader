@@ -592,7 +592,12 @@ mod test {
             }
         }
 
-        fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
+        unsafe fn load(
+            &mut self,
+            _flags: Flags,
+            base: VAddr,
+            region: &[u8],
+        ) -> Result<(), ElfLoaderErr> {
             info!("load base = {:#x} size = {:#x} region", base, region.len());
             self.actions.push(LoaderAction::Load(base, region.len()));
             Ok(())
