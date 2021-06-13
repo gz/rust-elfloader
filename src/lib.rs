@@ -165,8 +165,6 @@ pub struct DynamicInfo {
 
 /// Abstract representation of a loadable ELF binary.
 pub struct ElfBinary<'s> {
-    /// The filname of the binary.
-    name: &'s str,
     /// The ELF file in question.
     pub file: ElfFile<'s>,
     /// Parsed information from the .dynamic section (if the binary has it).
@@ -175,7 +173,7 @@ pub struct ElfBinary<'s> {
 
 impl<'s> fmt::Debug for ElfBinary<'s> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ElfBinary{{ {} [", self.name)?;
+        write!(f, "ElfBinary{{ [")?;
         for p in self.program_headers() {
             write!(f, " pheader = {}", p)?;
         }
@@ -226,7 +224,7 @@ pub trait ElfLoader {
 
 impl<'s> ElfBinary<'s> {
     /// Create a new ElfBinary.
-    pub fn new(name: &'s str, region: &'s [u8]) -> Result<ElfBinary<'s>, &'static str> {
+    pub fn new(region: &'s [u8]) -> Result<ElfBinary<'s>, &'static str> {
         let file = ElfFile::new(region)?;
 
         // Parse relevant parts out of the the .dynamic section
@@ -241,11 +239,7 @@ impl<'s> ElfBinary<'s> {
             }
         }
 
-        Ok(ElfBinary {
-            name,
-            file,
-            dynamic,
-        })
+        Ok(ElfBinary { file, dynamic })
     }
 
     /// Returns true if the binary is compiled as position independent code or false otherwise.
@@ -591,7 +585,7 @@ mod test {
     fn load_pie_elf() {
         init();
         let binary_blob = fs::read("test/test").expect("Can't read binary");
-        let binary = ElfBinary::new("test", binary_blob.as_slice()).expect("Got proper ELF file");
+        let binary = ElfBinary::new(binary_blob.as_slice()).expect("Got proper ELF file");
 
         assert!(binary.is_pie());
 
@@ -636,7 +630,7 @@ mod test {
     fn check_nopie() {
         init();
         let binary_blob = fs::read("test/test_nopie").expect("Can't read binary");
-        let binary = ElfBinary::new("test", binary_blob.as_slice()).expect("Got proper ELF file");
+        let binary = ElfBinary::new(binary_blob.as_slice()).expect("Got proper ELF file");
 
         assert!(!binary.is_pie());
     }
@@ -646,7 +640,7 @@ mod test {
         init();
 
         let binary_blob = fs::read("test/tls").expect("Can't read binary");
-        let binary = ElfBinary::new("tls", binary_blob.as_slice()).expect("Got proper ELF file");
+        let binary = ElfBinary::new(binary_blob.as_slice()).expect("Got proper ELF file");
         let mut loader = TestLoader::new(0x1000_0000);
         binary.load(&mut loader).expect("Can't load?");
         /*
