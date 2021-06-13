@@ -77,7 +77,7 @@ Then, with ElfBinary, a ELF file is loaded using `load`:
 
 ```rust
 let binary_blob = fs::read("test/test").expect("Can't read binary");
-let binary = ElfBinary::new("test", binary_blob.as_slice()).expect("Got proper ELF file");
+let binary = ElfBinary::new(binary_blob.as_slice()).expect("Got proper ELF file");
 let mut loader = ExampleLoader::new(0x1000_0000);
 binary.load(&mut loader).expect("Can't load the binary?");
 ```
