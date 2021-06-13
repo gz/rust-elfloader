@@ -357,7 +357,7 @@ impl<'s> ElfBinary<'s> {
         trace!("load dynamic segement {:?}", dynamic_header);
 
         // Walk through the dynamic program header and find the rela and sym_tab section offsets:
-        let segment = dynamic_header.get_data(&file)?;
+        let segment = dynamic_header.get_data(file)?;
         let mut flags1 = Default::default();
         let mut rela: u64 = 0;
         let mut rela_size: u64 = 0;
@@ -550,7 +550,7 @@ mod test {
             }
         }
 
-        fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
+        fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
             info!("load base = {:#x} size = {:#x} region", base, region.len());
             self.actions.push(LoaderAction::Load(base, region.len()));
             Ok(())
