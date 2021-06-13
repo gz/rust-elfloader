@@ -227,9 +227,13 @@ pub trait ElfLoader {
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), ElfLoaderErr>;
 
     /// Copies `region` into memory starting at `base`.
-    /// The caller makes sure that there was an `allocate` call previously
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that there was an `allocate` call previously
     /// to initialize the region.
-    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr>;
+    unsafe fn load(&mut self, flags: Flags, base: VAddr, region: &[u8])
+        -> Result<(), ElfLoaderErr>;
 
     /// Request for the client to relocate the given `entry`
     /// within the loaded ELF file.
@@ -465,11 +469,14 @@ impl<'s> ElfBinary<'s> {
             if let Ph64(header) = p {
                 let typ = header.get_type()?;
                 if typ == Type::Load {
-                    loader.load(
-                        header.flags,
-                        header.virtual_addr,
-                        header.raw_data(&self.file),
-                    )?;
+                    // SAFETY: Yes, `loader.allocate(load_iter)?;` allocates memory.
+                    unsafe {
+                        loader.load(
+                            header.flags,
+                            header.virtual_addr,
+                            header.raw_data(&self.file),
+                        )?;
+                    }
                 } else if typ == Type::Tls {
                     loader.tls(
                         header.virtual_addr,
