@@ -11,7 +11,7 @@ edition = "2018"
 
 [dependencies]
 log = "0.4"
-xmas-elf = "0.7"
+xmas-elf = "0.8"
 bitflags = "1.2"
 
 [target.'cfg(target_family = "unix")'.dev-dependencies]
