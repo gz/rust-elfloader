@@ -494,9 +494,7 @@ impl<'s> ElfBinary<'s> {
         // headers and pass it to the loader
         // TODO: This is pretty ugly, maybe we can do something with impl Trait?
         // https://stackoverflow.com/questions/27535289/what-is-the-correct-way-to-return-an-iterator-or-any-other-trait
-        self.file
-            .program_iter()
-            .filter(select_load as fn(&ProgramHeader) -> bool)
+        self.file.program_iter().filter(select_load)
     }
 }
 
