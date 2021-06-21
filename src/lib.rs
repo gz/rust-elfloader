@@ -438,27 +438,7 @@ impl<'s> ElfBinary<'s> {
     pub fn load(&self, loader: &mut dyn ElfLoader) -> Result<(), ElfLoaderErr> {
         self.is_loadable()?;
 
-        // Trying to determine loadeable headers
-        fn select_load(&pheader: &ProgramHeader) -> bool {
-            if let Ph64(header) = pheader {
-                header
-                    .get_type()
-                    .map(|typ| typ == Type::Load)
-                    .unwrap_or(false)
-            } else {
-                false
-            }
-        }
-
-        // Create an iterator (well filter really) that has all loadeable
-        // headers and pass it to the loader
-        // TODO: This is pretty ugly, maybe we can do something with impl Trait?
-        // https://stackoverflow.com/questions/27535289/what-is-the-correct-way-to-return-an-iterator-or-any-other-trait
-        let load_iter = self
-            .file
-            .program_iter()
-            .filter(select_load as fn(&ProgramHeader) -> bool);
-        loader.allocate(load_iter)?;
+        loader.allocate(self.iter_loadable_headers())?;
 
         // Load all headers
         for p in self.file.program_iter() {
@@ -495,6 +475,26 @@ impl<'s> ElfBinary<'s> {
         }
 
         Ok(())
+    }
+
+    fn iter_loadable_headers(&self) -> LoadableHeaders {
+        // Trying to determine loadeable headers
+        fn select_load(pheader: &ProgramHeader) -> bool {
+            if let Ph64(header) = pheader {
+                header
+                    .get_type()
+                    .map(|typ| typ == Type::Load)
+                    .unwrap_or(false)
+            } else {
+                false
+            }
+        }
+
+        // Create an iterator (well filter really) that has all loadeable
+        // headers and pass it to the loader
+        // TODO: This is pretty ugly, maybe we can do something with impl Trait?
+        // https://stackoverflow.com/questions/27535289/what-is-the-correct-way-to-return-an-iterator-or-any-other-trait
+        self.file.program_iter().filter(select_load)
     }
 }
 
