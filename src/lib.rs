@@ -479,7 +479,7 @@ impl<'s> ElfBinary<'s> {
 
     fn iter_loadable_headers(&self) -> LoadableHeaders {
         // Trying to determine loadeable headers
-        fn select_load(&pheader: &ProgramHeader) -> bool {
+        fn select_load(pheader: &ProgramHeader) -> bool {
             if let Ph64(header) = pheader {
                 header
                     .get_type()
