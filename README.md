@@ -12,6 +12,7 @@ Clients will have to implement the ElfLoader trait:
 
 ```rust
 use elfloader::*;
+use log::info;
 
 /// A simple ExampleLoader, that implements ElfLoader
 /// but does nothing but logging
@@ -20,7 +21,7 @@ struct ExampleLoader {
 }
 
 impl ElfLoader for ExampleLoader {
-    fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
+    fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), ElfLoaderErr> {
         for header in load_headers {
             info!(
                 "allocate base = {:#x} size = {:#x} flags = {}",
@@ -32,7 +33,7 @@ impl ElfLoader for ExampleLoader {
         Ok(())
     }
 
-    fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str> {
+    fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), ElfLoaderErr> {
         let typ = TypeRela64::from(entry.get_type());
         let addr: *mut u64 = (self.vbase + entry.get_offset()) as *mut u64;
 
@@ -47,13 +48,13 @@ impl ElfLoader for ExampleLoader {
                 );
                 Ok(())
             }
-            _ => Err("Unexpected relocation encountered"),
+            _ => Ok((/* not implemented */)),
         }
     }
 
-    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
+    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), ElfLoaderErr> {
         let start = self.vbase + base;
-        let end = self.vbase + base + region.len();
+        let end = self.vbase + base + region.len() as u64;
         info!("load region into = {:#x} -- {:#x}", start, end);
         Ok(())
     }
@@ -64,20 +65,21 @@ impl ElfLoader for ExampleLoader {
         _tdata_length: u64,
         total_size: u64,
         _align: u64
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), ElfLoaderErr> {
         let tls_end = tdata_start +  total_size;
         info!("Initial TLS region is at = {:#x} -- {:#x}", tdata_start, tls_end);
         Ok(())
     }
 
 }
-```
 
-Then, with ElfBinary, a ELF file is loaded using `load`:
+// Then, with ElfBinary, a ELF file is loaded using `load`:
+fn main() {
+    use std::fs;
 
-```rust
-let binary_blob = fs::read("test/test").expect("Can't read binary");
-let binary = ElfBinary::new(binary_blob.as_slice()).expect("Got proper ELF file");
-let mut loader = ExampleLoader::new(0x1000_0000);
-binary.load(&mut loader).expect("Can't load the binary?");
+    let binary_blob = fs::read("test/test").expect("Can't read binary");
+    let binary = ElfBinary::new(binary_blob.as_slice()).expect("Got proper ELF file");
+    let mut loader = ExampleLoader { vbase: 0x1000_0000 };
+    binary.load(&mut loader).expect("Can't load the binary?");
+}
 ```
