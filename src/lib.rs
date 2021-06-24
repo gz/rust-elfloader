@@ -25,6 +25,7 @@ pub use xmas_elf::sections::Rela;
 pub use xmas_elf::symbol_table::{Entry, Entry64};
 pub use xmas_elf::{P32, P64};
 
+/// An iterator over [`ProgramHeader`] whose type is `LOAD`.
 pub type LoadableHeaders<'a, 'b> = Filter<ProgramIter<'a, 'b>, fn(&ProgramHeader) -> bool>;
 pub type PAddr = u64;
 pub type VAddr = u64;
