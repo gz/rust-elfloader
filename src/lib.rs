@@ -367,7 +367,6 @@ impl<'s> ElfBinary<'s> {
                 if let SectionData::Rela64(rela_entries) = data {
                     // Now we finally have a list of relocation we're supposed to perform:
                     for entry in rela_entries {
-                        let _typ = TypeRela64::from(entry.get_type());
                         // Does the entry blong to the current header?
                         loader.relocate(entry)?;
                     }
