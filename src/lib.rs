@@ -15,7 +15,7 @@ use bitflags::bitflags;
 use log::*;
 use xmas_elf::dynamic::*;
 use xmas_elf::header;
-use xmas_elf::program::ProgramHeader::Ph64;
+use xmas_elf::program::ProgramHeader::{Ph32,Ph64};
 use xmas_elf::program::{ProgramIter, SegmentData, Type};
 use xmas_elf::sections::SectionData;
 use xmas_elf::*;
@@ -266,12 +266,14 @@ impl<'s> ElfBinary<'s> {
         // Parse relevant parts out of the the .dynamic section
         let mut dynamic = None;
         for p in file.program_iter() {
-            if let Ph64(header) = p {
-                let typ = header.get_type()?;
-                if typ == Type::Dynamic {
-                    dynamic = ElfBinary::parse_dynamic(&file, header)?;
-                    break;
-                }
+            let typ = match p {
+                Ph64(header) => header.get_type()?,
+                Ph32(header) => header.get_type()?,
+            };
+
+            if typ == Type::Dynamic {
+                dynamic = ElfBinary::parse_dynamic(&file, &p)?;
+                break;
             }
         }
 
@@ -337,9 +339,7 @@ impl<'s> ElfBinary<'s> {
         let header = self.file.header;
         let typ = header.pt2.type_().as_type();
 
-        if header.pt1.class() != header::Class::SixtyFour {
-            Err(ElfLoaderErr::UnsupportedElfFormat)
-        } else if header.pt1.version() != header::Version::Current {
+        if header.pt1.version() != header::Version::Current {
             Err(ElfLoaderErr::UnsupportedElfVersion)
         } else if header.pt1.data() != header::Data::LittleEndian {
             Err(ElfLoaderErr::UnsupportedEndianness)
@@ -359,22 +359,35 @@ impl<'s> ElfBinary<'s> {
     ///
     /// Issues call to `loader.relocate` and passes the relocation entry.
     fn maybe_relocate(&self, loader: &mut dyn ElfLoader) -> Result<(), ElfLoaderErr> {
+
         // It's easier to just locate the section by name:
         self.file.find_section_by_name(".rela.dyn").map_or(
             Ok(()), // .rela.dyn section found
             |rela_section_dyn| {
                 let data = rela_section_dyn.get_data(&self.file)?;
-                if let SectionData::Rela64(rela_entries) = data {
-                    // Now we finally have a list of relocation we're supposed to perform:
-                    for entry in rela_entries {
-                        let _typ = TypeRela64::from(entry.get_type());
-                        // Does the entry blong to the current header?
-                        loader.relocate(entry)?;
-                    }
+                match data {
+                    SectionData::Rela64(rela_entries) => {
+                        // Now we finally have a list of relocation we're supposed to perform:
+                        for entry in rela_entries {
+                            let _typ = TypeRela64::from(entry.get_type());
+                            // Does the entry blong to the current header?
+                            loader.relocate(entry)?;
+                        }
 
-                    Ok(())
-                } else {
-                    Err(ElfLoaderErr::UnsupportedSectionData)
+                        Ok(())
+                    },
+                    SectionData::Rela32(rela_entries) => {
+                        trace!("Relocation entries: {:?}", rela_entries);
+
+                        /* Now we finally have a list of relocation we're supposed to perform:
+                        for entry in rela_entries {
+                            let _typ = TypeRela32::from(entry.get_type());
+                            // Does the entry blong to the current header?
+                            loader.relocate(entry)?;
+                        }*/
+                        Ok(())
+                    },
+                    _ => Err(ElfLoaderErr::UnsupportedSectionData)
                 }
             },
         )
@@ -386,9 +399,9 @@ impl<'s> ElfBinary<'s> {
     /// At the moment this just does sanity checking for relocation later.
     ///
     /// A human readable version of the dynamic section is best obtained with `readelf -d <binary>`.
-    fn parse_dynamic(
+    fn parse_dynamic<'a>(
         file: &ElfFile,
-        dynamic_header: &ProgramHeader64,
+        dynamic_header: &'a ProgramHeader<'a>,
     ) -> Result<Option<DynamicInfo>, ElfLoaderErr> {
         trace!("load dynamic segement {:?}", dynamic_header);
 
@@ -403,6 +416,7 @@ impl<'s> ElfBinary<'s> {
                 for dyn_entry in dyn_entries {
                     let tag = dyn_entry.get_tag()?;
                     match tag {
+                        Tag::Needed => {trace!("Required library {:?}", file.get_dyn_string(dyn_entry.get_val()? as u32))},
                         Tag::Rela => rela = dyn_entry.get_ptr()?,
                         Tag::RelaSize => rela_size = dyn_entry.get_val()?,
                         Tag::Flags1 => {
@@ -413,6 +427,21 @@ impl<'s> ElfBinary<'s> {
                     }
                 }
             }
+            SegmentData::Dynamic32(dyn_entries) => {
+                for dyn_entry in dyn_entries {
+                    let tag = dyn_entry.get_tag()?;
+                    match tag {
+                        Tag::Needed => {trace!("Required library {:?}", file.get_dyn_string(dyn_entry.get_val()?))},
+                        Tag::Rela => rela = dyn_entry.get_ptr()?.into(),
+                        Tag::RelaSize => rela_size = dyn_entry.get_val()?.into(),
+                        Tag::Flags => {
+                            flags1 =
+                                unsafe { DynamicFlags1::from_bits_unchecked(dyn_entry.get_val()? as u64) };
+                        },
+                        _ => trace!("unsupported {:?}", dyn_entry),
+                    }
+                }
+            },
             _ => {
                 return Err(ElfLoaderErr::UnsupportedSectionData);
             }
@@ -442,23 +471,32 @@ impl<'s> ElfBinary<'s> {
         loader.allocate(self.iter_loadable_headers())?;
 
         // Load all headers
-        for p in self.file.program_iter() {
-            if let Ph64(header) = p {
-                let typ = header.get_type()?;
-                if typ == Type::Load {
+        for header in self.file.program_iter() {
+            let raw = match header {
+                Ph32(inner) => inner.raw_data(&self.file),
+                Ph64(inner) => inner.raw_data(&self.file),
+            };
+            let typ = header.get_type()?;
+            match typ {
+                Type::Load => {
                     loader.load(
-                        header.flags,
-                        header.virtual_addr,
-                        header.raw_data(&self.file),
+                        header.flags(),
+                        header.virtual_addr(),
+                        raw,
                     )?;
-                } else if typ == Type::Tls {
+                },
+                Type::Tls => {
                     loader.tls(
-                        header.virtual_addr,
-                        header.file_size,
-                        header.mem_size,
-                        header.align,
+                        header.virtual_addr(),
+                        header.file_size(),
+                        header.mem_size(),
+                        header.align(),
                     )?;
-                }
+                },
+                Type::Interp => {
+                    //loader.interp()
+                },
+                _ => {}, // skip for now
             }
         }
 
@@ -466,12 +504,10 @@ impl<'s> ElfBinary<'s> {
         self.maybe_relocate(loader)?;
 
         // Process .data.rel.ro
-        for p in self.file.program_iter() {
-            if let Ph64(header) = p {
-                let typ = header.get_type()?;
-                if typ == Type::GnuRelro {
-                    loader.make_readonly(header.virtual_addr, header.mem_size as usize)?;
-                }
+        for header in self.file.program_iter() {
+            match header.get_type()? {
+                Type::GnuRelro => loader.make_readonly(header.virtual_addr(), header.mem_size() as usize)?,
+                _ => {}
             }
         }
 
@@ -627,6 +663,10 @@ mod test {
 
         let mut loader = TestLoader::new(0x1000_0000);
         binary.load(&mut loader).expect("Can't load?");
+
+        for action in loader.actions.iter() {
+            println!("{:?}", action);
+        }
 
         assert!(loader
             .actions
