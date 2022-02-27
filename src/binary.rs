@@ -69,7 +69,7 @@ impl<'s> ElfBinary<'s> {
     pub fn interpreter(&'s self) -> Option<&'s str> {
         self.file
             .find_section_by_name(".interp")
-            .map_or(None, |interp_section| {
+            .and_then(|interp_section| {
                 let data = interp_section.get_data(&self.file).ok()?;
                 match data {
                     SectionData::Undefined(val) => {
@@ -158,7 +158,7 @@ impl<'s> ElfBinary<'s> {
         let relocation_section = self
             .file
             .find_section_by_name(".rela.dyn")
-            .or(self.file.find_section_by_name(".rel.dyn"));
+            .or_else(|| self.file.find_section_by_name(".rel.dyn"));
 
         relocation_section.map_or(
             Ok(()), // neither section found
@@ -319,11 +319,8 @@ impl<'s> ElfBinary<'s> {
 
         // Process .data.rel.ro
         for header in self.file.program_iter() {
-            match header.get_type()? {
-                Type::GnuRelro => {
-                    loader.make_readonly(header.virtual_addr(), header.mem_size() as usize)?
-                }
-                _ => {}
+            if header.get_type()? == Type::GnuRelro {
+                loader.make_readonly(header.virtual_addr(), header.mem_size() as usize)?
             }
         }
 

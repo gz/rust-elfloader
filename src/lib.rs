@@ -41,18 +41,6 @@ pub enum RelaEntry<'a> {
     Rela64(&'a Rela<P64>),
 }
 
-// Apply an arbitrary function to the inner
-/* relocation type
-impl<'a> RelaEntry<'a> {
-    fn get_type<R>(&'a self) -> R
-    {
-        match self {
-            Self::Rela32(inner) => inner.get_type(),
-            Self::Rela64(inner) => inner.get_type(),
-        }
-    }
-}*/
-
 #[derive(PartialEq, Clone, Debug)]
 pub enum ElfLoaderErr {
     ElfParser { source: &'static str },
@@ -206,7 +194,7 @@ pub enum TypeRela64 {
     R_GOTTPOFF,
     /// Offset in static TLS block
     R_TPOFF32,
-    /// Unknown2
+    /// Unknown
     Unknown(u32),
 }
 
