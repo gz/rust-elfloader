@@ -25,6 +25,7 @@ pub use xmas_elf::program::{Flags, ProgramHeader, ProgramHeader64};
 pub use xmas_elf::sections::{Rel, Rela};
 pub use xmas_elf::symbol_table::{Entry, Entry64};
 pub use xmas_elf::{P32, P64};
+pub use xmas_elf::header::Machine;
 
 /// An iterator over [`ProgramHeader`] whose type is `LOAD`.
 pub type LoadableHeaders<'a, 'b> = Filter<ProgramIter<'a, 'b>, fn(&ProgramHeader) -> bool>;
@@ -44,6 +45,7 @@ pub enum RelaEntry<'a> {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ElfLoaderErr {
     ElfParser { source: &'static str },
+    OutOfMemory,
     SymbolTableNotFound,
     UnsupportedElfFormat,
     UnsupportedElfVersion,
@@ -64,6 +66,7 @@ impl fmt::Display for ElfLoaderErr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ElfLoaderErr::ElfParser { source } => write!(f, "Error in ELF parser: {}", source),
+            ElfLoaderErr::OutOfMemory => write!(f, "Out of memory"),
             ElfLoaderErr::SymbolTableNotFound => write!(f, "No symbol table in the ELF file"),
             ElfLoaderErr::UnsupportedElfFormat => write!(f, "ELF format not supported"),
             ElfLoaderErr::UnsupportedElfVersion => write!(f, "ELF version not supported"),

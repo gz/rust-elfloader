@@ -83,6 +83,11 @@ impl<'s> ElfBinary<'s> {
             })
     }
 
+    /// Returns the target architecture
+    pub fn get_arch(&self) -> header::Machine {
+        self.file.header.pt2.machine().as_machine()
+    }
+
     /// Return the entry point of the ELF file.
     ///
     /// Note this may be zero in case of position independent executables.
