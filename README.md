@@ -33,18 +33,26 @@ impl ElfLoader for ExampleLoader {
         Ok(())
     }
 
-    fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), ElfLoaderErr> {
-        let typ = TypeRela64::from(entry.get_type());
-        let addr: *mut u64 = (self.vbase + entry.get_offset()) as *mut u64;
+    fn relocate(&mut self, entry: RelocationEntry) -> Result<(), ElfLoaderErr> {
+        use RelocationType::x86_64;
+        use crate::arch::x86_64::RelocationTypes::*;
 
-        match typ {
-            TypeRela64::R_RELATIVE => {
+        let addr: *mut u64 = (self.vbase + entry.offset) as *mut u64;
+
+        match entry.rtype {
+            x86_64(R_AMD64_RELATIVE) => {
+
+                // This type requires addend to be present
+                let addend = entry
+                    .addend
+                    .ok_or(ElfLoaderErr::UnsupportedRelocationEntry)?;
+
                 // This is a relative relocation, add the offset (where we put our
                 // binary in the vspace) to the addend and we're done.
                 info!(
                     "R_RELATIVE *{:p} = {:#x}",
                     addr,
-                    self.vbase + entry.get_addend()
+                    self.vbase + addend
                 );
                 Ok(())
             }

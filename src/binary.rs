@@ -1,5 +1,6 @@
 use crate::{
-    DynamicFlags1, DynamicInfo, ElfLoader, ElfLoaderErr, LoadableHeaders, RelaEntry, TypeRela64,
+    DynamicFlags1, DynamicInfo, ElfLoader, ElfLoaderErr, LoadableHeaders, RelocationEntry,
+    RelocationType,
 };
 use core::fmt;
 use log::*;
@@ -115,20 +116,20 @@ impl<'s> ElfBinary<'s> {
             .find_section_by_name(".symtab")
             .ok_or(ElfLoaderErr::SymbolTableNotFound)?;
         let symbol_table = symbol_section.get_data(&self.file)?;
-        if let SectionData::SymbolTable64(entries) = symbol_table {
-            for entry in entries {
-                //trace!("entry {:?}", entry);
-                func(entry);
+        match symbol_table {
+            SectionData::SymbolTable32(entries) => {
+                for entry in entries {
+                    func(entry);
+                }
+                Ok(())
             }
-            Ok(())
-        } else if let SectionData::SymbolTable32(entries) = symbol_table {
-            for entry in entries {
-                //trace!("entry {:?}", entry);
-                func(entry);
+            SectionData::SymbolTable64(entries) => {
+                for entry in entries {
+                    func(entry);
+                }
+                Ok(())
             }
-            Ok(())
-        } else {
-            Err(ElfLoaderErr::SymbolTableNotFound)
+            _ => Err(ElfLoaderErr::SymbolTableNotFound),
         }
     }
 
@@ -157,6 +158,9 @@ impl<'s> ElfBinary<'s> {
     ///
     /// Issues call to `loader.relocate` and passes the relocation entry.
     fn maybe_relocate(&self, loader: &mut dyn ElfLoader) -> Result<(), ElfLoaderErr> {
+        // Relocation types are architecture specific
+        let arch = self.get_arch();
+
         // It's easier to just locate the section by name, either:
         // - .rela.dyn
         // - .rel.dyn
@@ -173,9 +177,15 @@ impl<'s> ElfBinary<'s> {
                     SectionData::Rela64(rela_entries) => {
                         // Now we finally have a list of relocation we're supposed to perform:
                         for entry in rela_entries {
-                            let _typ = TypeRela64::from(entry.get_type());
+                            //let _typ = RelocationType::from(entry.get_type());
                             // Does the entry blong to the current header?
-                            loader.relocate(RelaEntry::Rela64(entry))?;
+                            //loader.relocate(RelaEntry::Rela64(entry))?;
+                            loader.relocate(RelocationEntry {
+                                rtype: RelocationType::from(arch, entry.get_type() as u32)?,
+                                offset: entry.get_offset(),
+                                info: entry.get_symbol_table_index(),
+                                addend: Some(entry.get_addend()),
+                            })?;
                         }
 
                         Ok(())
@@ -185,9 +195,12 @@ impl<'s> ElfBinary<'s> {
 
                         // Now we finally have a list of relocation we're supposed to perform:
                         for entry in rela_entries {
-                            //let _typ = TypeRela32::from(entry.get_type());
-                            // Does the entry blong to the current header?
-                            loader.relocate(RelaEntry::Rela32(entry))?;
+                            loader.relocate(RelocationEntry {
+                                rtype: RelocationType::from(arch, entry.get_type() as u32)?,
+                                offset: entry.get_offset() as u64,
+                                info: entry.get_symbol_table_index(),
+                                addend: Some(entry.get_addend() as u64),
+                            })?;
                         }
                         Ok(())
                     }
@@ -196,9 +209,12 @@ impl<'s> ElfBinary<'s> {
 
                         // Now we finally have a list of relocation we're supposed to perform:
                         for entry in rela_entries {
-                            //let _typ = TypeRela32::from(entry.get_type());
-                            // Does the entry blong to the current header?
-                            loader.relocate(RelaEntry::Rel32(entry))?;
+                            loader.relocate(RelocationEntry {
+                                rtype: RelocationType::from(arch, entry.get_type() as u32)?,
+                                offset: entry.get_offset() as u64,
+                                info: entry.get_symbol_table_index(),
+                                addend: None,
+                            })?;
                         }
                         Ok(())
                     }
