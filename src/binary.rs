@@ -169,59 +169,56 @@ impl<'s> ElfBinary<'s> {
             .find_section_by_name(".rela.dyn")
             .or_else(|| self.file.find_section_by_name(".rel.dyn"));
 
-        relocation_section.map_or(
-            Ok(()), // neither section found
-            |rela_section_dyn| {
-                let data = rela_section_dyn.get_data(&self.file)?;
-                match data {
-                    SectionData::Rela64(rela_entries) => {
-                        // Now we finally have a list of relocation we're supposed to perform:
-                        for entry in rela_entries {
-                            //let _typ = RelocationType::from(entry.get_type());
-                            // Does the entry blong to the current header?
-                            //loader.relocate(RelaEntry::Rela64(entry))?;
-                            loader.relocate(RelocationEntry {
-                                rtype: RelocationType::from(arch, entry.get_type() as u32)?,
-                                offset: entry.get_offset(),
-                                info: entry.get_symbol_table_index(),
-                                addend: Some(entry.get_addend()),
-                            })?;
-                        }
-
-                        Ok(())
-                    }
-                    SectionData::Rela32(rela_entries) => {
-                        trace!("Relocation entries: {:?}", rela_entries);
-
-                        // Now we finally have a list of relocation we're supposed to perform:
-                        for entry in rela_entries {
-                            loader.relocate(RelocationEntry {
-                                rtype: RelocationType::from(arch, entry.get_type() as u32)?,
-                                offset: entry.get_offset() as u64,
-                                info: entry.get_symbol_table_index(),
-                                addend: Some(entry.get_addend() as u64),
-                            })?;
-                        }
-                        Ok(())
-                    }
-                    SectionData::Rel32(rela_entries) => {
-                        trace!("Relocation entries: {:?}", rela_entries);
-
-                        // Now we finally have a list of relocation we're supposed to perform:
-                        for entry in rela_entries {
-                            loader.relocate(RelocationEntry {
-                                rtype: RelocationType::from(arch, entry.get_type() as u32)?,
-                                offset: entry.get_offset() as u64,
-                                info: entry.get_symbol_table_index(),
-                                addend: None,
-                            })?;
-                        }
-                        Ok(())
-                    }
-                    _ => Err(ElfLoaderErr::UnsupportedSectionData),
+        // Helper macro to call loader.relocate() on all entries
+        macro_rules! iter_entries_and_relocate {
+            ($rela_entries:expr, $create_addend:ident) => {
+                for entry in $rela_entries {
+                    loader.relocate(RelocationEntry {
+                        rtype: RelocationType::from(arch, entry.get_type() as u32)?,
+                        offset: entry.get_offset() as u64,
+                        info: entry.get_symbol_table_index(),
+                        addend: $create_addend!(entry),
+                    })?;
                 }
-            },
-        )
+            };
+        }
+
+        // Construct from Rel<T> entries. Does not contain an addend.
+        macro_rules! rel_entry {
+            ($entry:expr) => {
+                None
+            };
+        }
+
+        // Construct from Rela<T> entries. Contains an addend.
+        macro_rules! rela_entry {
+            ($entry:expr) => {
+                Some($entry.get_addend() as u64)
+            };
+        }
+
+        // If either section exists apply the relocations
+        relocation_section.map(|rela_section_dyn| {
+            let data = rela_section_dyn.get_data(&self.file)?;
+            match data {
+                SectionData::Rel32(rel_entries) => {
+                    iter_entries_and_relocate!(rel_entries, rel_entry);
+                }
+                SectionData::Rela32(rela_entries) => {
+                    iter_entries_and_relocate!(rela_entries, rela_entry);
+                }
+                SectionData::Rel64(rel_entries) => {
+                    iter_entries_and_relocate!(rel_entries, rel_entry);
+                }
+                SectionData::Rela64(rela_entries) => {
+                    iter_entries_and_relocate!(rela_entries, rela_entry);
+                }
+                _ => return Err(ElfLoaderErr::UnsupportedSectionData),
+            }
+            Ok(())
+        });
+
+        Ok(())
     }
 
     /// Processes a dynamic header section.
