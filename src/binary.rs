@@ -198,7 +198,7 @@ impl<'s> ElfBinary<'s> {
         }
 
         // If either section exists apply the relocations
-        relocation_section.map(|rela_section_dyn| {
+        relocation_section.map_or(Ok(()), |rela_section_dyn| {
             let data = rela_section_dyn.get_data(&self.file)?;
             match data {
                 SectionData::Rel32(rel_entries) => {
@@ -216,9 +216,7 @@ impl<'s> ElfBinary<'s> {
                 _ => return Err(ElfLoaderErr::UnsupportedSectionData),
             }
             Ok(())
-        });
-
-        Ok(())
+        })
     }
 
     /// Processes a dynamic header section.

@@ -40,10 +40,10 @@ pub type VAddr = u64;
 // how to handle each relocation
 #[allow(dead_code)]
 pub struct RelocationEntry {
-    rtype: RelocationType,
-    offset: u64,
-    info: u32,
-    addend: Option<u64>,
+    pub rtype: RelocationType,
+    pub offset: u64,
+    pub info: u32,
+    pub addend: Option<u64>,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -57,6 +57,7 @@ pub enum ElfLoaderErr {
     UnsupportedAbi,
     UnsupportedElfType,
     UnsupportedSectionData,
+    UnsupportedArchitecture,
     UnsupportedRelocationEntry,
 }
 
@@ -78,6 +79,7 @@ impl fmt::Display for ElfLoaderErr {
             ElfLoaderErr::UnsupportedAbi => write!(f, "ELF ABI not supported"),
             ElfLoaderErr::UnsupportedElfType => write!(f, "ELF type not supported"),
             ElfLoaderErr::UnsupportedSectionData => write!(f, "Can't handle this section data"),
+            ElfLoaderErr::UnsupportedArchitecture => write!(f, "Unsupported Architecture"),
             ElfLoaderErr::UnsupportedRelocationEntry => {
                 write!(f, "Can't handle relocation entry")
             }
