@@ -56,7 +56,7 @@ pub enum RelocationTypes {
 }
 
 impl RelocationTypes {
-    // Construt a new TypeRela64
+    // Construct a new x86_64::RelocationTypes
     pub fn from(typ: u32) -> RelocationTypes {
         use RelocationTypes::*;
         match typ {
