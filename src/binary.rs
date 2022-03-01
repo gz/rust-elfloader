@@ -185,14 +185,14 @@ impl<'s> ElfBinary<'s> {
 
         // Construct from Rel<T> entries. Does not contain an addend.
         macro_rules! rel_entry {
-            ($entry:expr) => {
+            ($entry:ident) => {
                 None
             };
         }
 
         // Construct from Rela<T> entries. Contains an addend.
         macro_rules! rela_entry {
-            ($entry:expr) => {
+            ($entry:ident) => {
                 Some($entry.get_addend() as u64)
             };
         }
@@ -233,51 +233,58 @@ impl<'s> ElfBinary<'s> {
 
         // Walk through the dynamic program header and find the rela and sym_tab section offsets:
         let segment = dynamic_header.get_data(file)?;
-        let mut flags1 = Default::default();
-        let mut rela: u64 = 0;
-        let mut rela_size: u64 = 0;
+
+        // Init result
+        let mut info = DynamicInfo {
+            flags1: Default::default(),
+            rela: 0,
+            rela_size: 0,
+        };
+
+        // Each section is parsed for the same information currently
+        macro_rules! parse_entry_tags {
+            ($info:ident, $entry:ident, $tag:ident) => {
+                match $tag {
+                    // Trace required libs
+                    Tag::Needed => {
+                        trace!(
+                            "Required library {:?}",
+                            file.get_dyn_string($entry.get_val()? as _)
+                        )
+                    }
+
+                    // Rel<T>
+                    Tag::Rel => $info.rela = $entry.get_ptr()?.into(),
+                    Tag::RelSize => $info.rela_size = $entry.get_val()?.into(),
+
+                    // Rela<T>
+                    Tag::Rela => $info.rela = $entry.get_ptr()?.into(),
+                    Tag::RelaSize => $info.rela_size = $entry.get_val()?.into(),
+                    Tag::Flags1 => {
+                        $info.flags1 =
+                            unsafe { DynamicFlags1::from_bits_unchecked($entry.get_val()? as _) };
+                    }
+                    _ => trace!("unsupported {:?}", $entry),
+                }
+            };
+        }
+
+        // Helper macro to iterate all entries
+        macro_rules! iter_entries_and_parse {
+            ($info:ident, $dyn_entries:expr) => {
+                for dyn_entry in $dyn_entries {
+                    let tag = dyn_entry.get_tag()?;
+                    parse_entry_tags!($info, dyn_entry, tag);
+                }
+            };
+        }
 
         match segment {
-            SegmentData::Dynamic64(dyn_entries) => {
-                for dyn_entry in dyn_entries {
-                    let tag = dyn_entry.get_tag()?;
-                    match tag {
-                        Tag::Needed => {
-                            trace!(
-                                "Required library {:?}",
-                                file.get_dyn_string(dyn_entry.get_val()? as u32)
-                            )
-                        }
-                        Tag::Rela => rela = dyn_entry.get_ptr()?,
-                        Tag::RelaSize => rela_size = dyn_entry.get_val()?,
-                        Tag::Flags1 => {
-                            flags1 =
-                                unsafe { DynamicFlags1::from_bits_unchecked(dyn_entry.get_val()?) };
-                        }
-                        _ => trace!("unsupported {:?}", dyn_entry),
-                    }
-                }
-            }
             SegmentData::Dynamic32(dyn_entries) => {
-                for dyn_entry in dyn_entries {
-                    let tag = dyn_entry.get_tag()?;
-                    match tag {
-                        Tag::Needed => {
-                            trace!(
-                                "Required library {:?}",
-                                file.get_dyn_string(dyn_entry.get_val()?)
-                            )
-                        }
-                        Tag::Rela => rela = dyn_entry.get_ptr()?.into(),
-                        Tag::RelaSize => rela_size = dyn_entry.get_val()?.into(),
-                        Tag::Flags => {
-                            flags1 = unsafe {
-                                DynamicFlags1::from_bits_unchecked(dyn_entry.get_val()? as u64)
-                            };
-                        }
-                        _ => trace!("unsupported {:?}", dyn_entry),
-                    }
-                }
+                iter_entries_and_parse!(info, dyn_entries);
+            }
+            SegmentData::Dynamic64(dyn_entries) => {
+                iter_entries_and_parse!(info, dyn_entries);
             }
             _ => {
                 return Err(ElfLoaderErr::UnsupportedSectionData);
@@ -286,16 +293,12 @@ impl<'s> ElfBinary<'s> {
 
         trace!(
             "rela size {:?} rela off {:?} flags1 {:?}",
-            rela_size,
-            rela,
-            flags1
+            info.rela_size,
+            info.rela,
+            info.flags1
         );
 
-        Ok(Some(DynamicInfo {
-            flags1,
-            rela,
-            rela_size,
-        }))
+        Ok(Some(info))
     }
 
     /// Processing the program headers and issue commands to loader.
