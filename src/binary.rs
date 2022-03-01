@@ -241,7 +241,7 @@ impl<'s> ElfBinary<'s> {
             rela_size: 0,
         };
 
-        // Each section is parsed for the same information currently
+        // Each entry/section is parsed for the same information currently
         macro_rules! parse_entry_tags {
             ($info:ident, $entry:ident, $tag:ident) => {
                 match $tag {
