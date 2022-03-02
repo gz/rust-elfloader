@@ -1,4 +1,4 @@
-![Build](https://github.com/gz/rust-elfloader/actions/workflows/standard.yml/badge.svg)
+![Build](https://github.com/gz/rust-elfloader/actions/workflows/standard.yml/badge.svg) ![cargo-badge][]  ![docs-badge][]
 
 # elfloader
 
@@ -91,3 +91,7 @@ fn main() {
     binary.load(&mut loader).expect("Can't load the binary?");
 }
 ```
+
+[//]: # (badges)
+[cargo-badge]: https://img.shields.io/crates/v/elfloader.svg?label=crates.io
+[docs-badge]: https://docs.rs/elfloader/badge.svg?label=docs.rs
