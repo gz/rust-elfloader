@@ -1,4 +1,4 @@
-![Build](https://github.com/gz/rust-elfloader/actions/workflows/standard.yml/badge.svg) ![cargo-badge][]  ![docs-badge][]
+![Build](https://github.com/gz/rust-elfloader/actions/workflows/standard.yml/badge.svg) [![cargo-badge][]][cargo-link] [![docs-badge][]][docs-link]
 
 # elfloader
 
@@ -92,6 +92,8 @@ fn main() {
 }
 ```
 
-[//]: # (badges)
+[//]: # (badges/links)
 [cargo-badge]: https://img.shields.io/crates/v/elfloader.svg?label=crates.io
+[cargo-link]: https://crates.io/crates/elfloader
 [docs-badge]: https://docs.rs/elfloader/badge.svg?label=docs.rs
+[docs-link]: https://docs.rs/elfloader
