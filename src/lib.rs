@@ -11,11 +11,11 @@ extern crate env_logger;
 mod binary;
 pub use binary::ElfBinary;
 
-#[cfg(test)]
-mod test;
-
 pub mod arch;
 pub use arch::RelocationType;
+
+#[cfg(test)]
+mod test;
 
 use core::fmt;
 use core::iter::Filter;

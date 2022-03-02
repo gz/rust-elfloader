@@ -77,12 +77,12 @@ impl<'s> ElfBinary<'s> {
             };
 
             // Validate there is room for a null terminator
-            if val.len() < 2 {
+            if cstr.len() < 2 {
                 return None;
             }
 
             // Ensure it is a valid utf8 string
-            Some(core::str::from_utf8(&val[..val.len() - 1]).ok()?)
+            Some(core::str::from_utf8(&cstr[..cstr.len() - 1]).ok()?)
         })
     }
 
