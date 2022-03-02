@@ -82,7 +82,7 @@ impl<'s> ElfBinary<'s> {
             }
 
             // Ensure it is a valid utf8 string
-            Some(core::str::from_utf8(&cstr[..cstr.len() - 1]).ok()?)
+            core::str::from_utf8(&cstr[..cstr.len() - 1]).ok()
         })
     }
 
