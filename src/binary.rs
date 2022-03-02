@@ -68,20 +68,22 @@ impl<'s> ElfBinary<'s> {
     ///
     /// For a statically compiled binary this will return None
     pub fn interpreter(&'s self) -> Option<&'s str> {
-        self.file
-            .find_section_by_name(".interp")
-            .and_then(|interp_section| {
-                let data = interp_section.get_data(&self.file).ok()?;
-                match data {
-                    SectionData::Undefined(val) => {
-                        if val.len() < 2 {
-                            return None;
-                        }
-                        Some(core::str::from_utf8(&val[..val.len() - 1]).ok()?)
-                    }
-                    _ => None,
-                }
-            })
+        let section = self.file.find_section_by_name(".interp");
+        section.and_then(|interp_section| {
+            let data = interp_section.get_data(&self.file).ok()?;
+            let cstr = match data {
+                SectionData::Undefined(val) => val,
+                _ => return None,
+            };
+
+            // Validate there is room for a null terminator
+            if val.len() < 2 {
+                return None;
+            }
+
+            // Ensure it is a valid utf8 string
+            Some(core::str::from_utf8(&val[..val.len() - 1]).ok()?)
+        })
     }
 
     /// Returns the target architecture
