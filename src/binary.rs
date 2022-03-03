@@ -178,7 +178,7 @@ impl<'s> ElfBinary<'s> {
                     loader.relocate(RelocationEntry {
                         rtype: RelocationType::from(arch, entry.get_type() as u32)?,
                         offset: entry.get_offset() as u64,
-                        info: entry.get_symbol_table_index(),
+                        index: entry.get_symbol_table_index(),
                         addend: $create_addend!(entry),
                     })?;
                 }

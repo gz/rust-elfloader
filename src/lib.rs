@@ -42,7 +42,7 @@ pub type VAddr = u64;
 pub struct RelocationEntry {
     pub rtype: RelocationType,
     pub offset: u64,
-    pub info: u32,
+    pub index: u32,
     pub addend: Option<u64>,
 }
 
