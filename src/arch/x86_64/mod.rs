@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test;
+
 // Should be in xmas-elf see: https://github.com/nrc/xmas-elf/issues/54
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]

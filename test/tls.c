@@ -1,4 +1,5 @@
-// gcc -o tls tls.c -fPIC -fPIE
+// gcc -o tls.x86_64 tls.c -fPIC -fPIE
+// aarch64-linux-gnu-gcc -o tls.aarch64 tls.c -fPIC -fPIE
 #include <stdio.h>
 
 __thread int tbss_entry = 0;

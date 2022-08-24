@@ -1,13 +1,18 @@
 use crate::{ElfLoaderErr, Machine};
 
+pub mod aarch64;
 pub mod x86;
 pub mod x86_64;
+
+#[cfg(test)]
+mod test;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum RelocationType {
     x86(x86::RelocationTypes),
     x86_64(x86_64::RelocationTypes),
+    //Aarch64(aarch64::RelocationTypes),
 }
 
 impl RelocationType {

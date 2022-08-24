@@ -14,9 +14,6 @@ pub use binary::ElfBinary;
 pub mod arch;
 pub use arch::RelocationType;
 
-#[cfg(test)]
-mod test;
-
 use core::fmt;
 use core::iter::Filter;
 
@@ -167,4 +164,16 @@ pub trait ElfLoader {
     fn make_readonly(&mut self, _base: VAddr, _size: usize) -> Result<(), ElfLoaderErr> {
         Ok(())
     }
+}
+
+#[cfg(doctest)]
+mod test_readme {
+    macro_rules! external_doc_test {
+        ($x:expr) => {
+            #[doc = $x]
+            extern "C" {}
+        };
+    }
+
+    external_doc_test!(include_str!("../README.md"));
 }

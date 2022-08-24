@@ -3,8 +3,8 @@
 # elfloader
 
 A library to load and relocate ELF files in memory. This library depends only on
-libcore so it can be used in kernel level code, for example to
-load user-space programs.
+libcore so it can be used in kernel level code, for example to load user-space
+programs.
 
 ## How-to use
 
@@ -85,7 +85,7 @@ impl ElfLoader for ExampleLoader {
 fn main() {
     use std::fs;
 
-    let binary_blob = fs::read("test/test").expect("Can't read binary");
+    let binary_blob = fs::read("test/test.x86_64").expect("Can't read binary");
     let binary = ElfBinary::new(binary_blob.as_slice()).expect("Got proper ELF file");
     let mut loader = ExampleLoader { vbase: 0x1000_0000 };
     binary.load(&mut loader).expect("Can't load the binary?");
