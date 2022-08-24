@@ -1,6 +1,6 @@
 [package]
 name = "elfloader"
-version = "0.15.0"
+version = "0.16.0"
 authors = [
   "Gerd Zellweger <mail@gerdzellweger.com>",
   "Christopher Cole <chris.cole.09@gmail.com>",

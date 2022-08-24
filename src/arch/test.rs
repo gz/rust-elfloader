@@ -43,9 +43,10 @@ impl ElfLoader for TestLoader {
     }
 
     fn relocate(&mut self, entry: RelocationEntry) -> Result<(), ElfLoaderErr> {
+        use crate::arch::aarch64::RelocationTypes::*;
         use crate::arch::x86::RelocationTypes::*;
         use crate::arch::x86_64::RelocationTypes::*;
-        use RelocationType::{x86, x86_64};
+        use RelocationType::{x86, x86_64, AArch64};
 
         // Get the pointer to where the relocation happens in the
         // memory where we loaded the headers
@@ -90,12 +91,32 @@ impl ElfLoader for TestLoader {
                 trace!("R_RELATIVE *{:p} = {:#x}", addr, self.vbase + addend);
                 Ok(())
             }
+            AArch64(R_AARCH64_RELATIVE) => {
+                // This type requires addend to be present
+                let addend = entry
+                    .addend
+                    .ok_or(ElfLoaderErr::UnsupportedRelocationEntry)?;
+
+                // This is a relative relocation, add the offset (where we put our
+                // binary in the vspace) to the addend and we're done.
+                self.actions
+                    .push(LoaderAction::Relocate(addr as u64, self.vbase + addend));
+                trace!("R_RELATIVE *{:p} = {:#x}", addr, self.vbase + addend);
+                Ok(())
+            }
+            AArch64(R_AARCH64_GLOB_DAT) => {
+                trace!("R_AARCH64_GLOB_DAT: Can't handle that.");
+                Ok(())
+            }
             x86_64(R_AMD64_GLOB_DAT) => {
                 trace!("R_AMD64_GLOB_DAT: Can't handle that.");
                 Ok(())
             }
             x86_64(R_AMD64_NONE) => Ok(()),
-            _ => Err(ElfLoaderErr::UnsupportedRelocationEntry),
+            e => {
+                log::error!("Unsupported relocation type: {:?}", e);
+                Err(ElfLoaderErr::UnsupportedRelocationEntry)
+            }
         }
     }
 

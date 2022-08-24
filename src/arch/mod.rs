@@ -12,7 +12,7 @@ mod test;
 pub enum RelocationType {
     x86(x86::RelocationTypes),
     x86_64(x86_64::RelocationTypes),
-    //Aarch64(aarch64::RelocationTypes),
+    AArch64(aarch64::RelocationTypes),
 }
 
 impl RelocationType {
@@ -21,6 +21,7 @@ impl RelocationType {
         let typ = match machine {
             Machine::X86 => RelocationType::x86(x86::RelocationTypes::from(type_num)),
             Machine::X86_64 => RelocationType::x86_64(x86_64::RelocationTypes::from(type_num)),
+            Machine::AArch64 => RelocationType::AArch64(aarch64::RelocationTypes::from(type_num)),
             _ => return Err(ElfLoaderErr::UnsupportedArchitecture),
         };
         Ok(typ)
