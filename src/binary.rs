@@ -3,6 +3,7 @@ use crate::{
     RelocationType,
 };
 use core::fmt;
+#[cfg(log)]
 use log::*;
 use xmas_elf::dynamic::Tag;
 use xmas_elf::program::ProgramHeader::{self, Ph32, Ph64};
@@ -149,6 +150,7 @@ impl<'s> ElfBinary<'s> {
         {
             Err(ElfLoaderErr::UnsupportedAbi)
         } else if !(typ == header::Type::Executable || typ == header::Type::SharedObject) {
+            #[cfg(log)]
             error!("Invalid ELF type {:?}", typ);
             Err(ElfLoaderErr::UnsupportedElfType)
         } else {
@@ -231,6 +233,7 @@ impl<'s> ElfBinary<'s> {
         file: &ElfFile,
         dynamic_header: &'a ProgramHeader<'a>,
     ) -> Result<Option<DynamicInfo>, ElfLoaderErr> {
+        #[cfg(log)]
         trace!("load dynamic segement {:?}", dynamic_header);
 
         // Walk through the dynamic program header and find the rela and sym_tab section offsets:
@@ -249,6 +252,7 @@ impl<'s> ElfBinary<'s> {
                 match $tag {
                     // Trace required libs
                     Tag::Needed => {
+                        #[cfg(log)]
                         trace!(
                             "Required library {:?}",
                             file.get_dyn_string($entry.get_val()? as _)
@@ -266,7 +270,10 @@ impl<'s> ElfBinary<'s> {
                         $info.flags1 =
                             unsafe { DynamicFlags1::from_bits_unchecked($entry.get_val()? as _) };
                     }
-                    _ => trace!("unsupported {:?}", $entry),
+                    _ => {
+                        #[cfg(log)]
+                        trace!("unsupported {:?}", $entry)
+                    }
                 }
             };
         }
@@ -293,6 +300,7 @@ impl<'s> ElfBinary<'s> {
             }
         };
 
+        #[cfg(log)]
         trace!(
             "rela size {:?} rela off {:?} flags1 {:?}",
             info.rela_size,
