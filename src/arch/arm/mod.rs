@@ -302,8 +302,6 @@ impl RelocationTypes {
     /// Construct new arm::RelocationTypes
     pub fn from(typ: u32) -> RelocationTypes {
         use RelocationTypes::*;
-        // The weird ordering comes by copying directly from the manual which is
-        // not consecutive either...
         match typ {
             0 => R_ARM_NONE,
             1 => R_ARM_PC24,
