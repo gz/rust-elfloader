@@ -314,6 +314,10 @@ impl<'s> ElfBinary<'s> {
 
         // Load all headers
         for header in self.file.program_iter() {
+            if header.get_type() == Ok(Type::Null) {
+                continue;
+            }
+
             let raw = match header {
                 Ph32(inner) => inner.raw_data(&self.file),
                 Ph64(inner) => inner.raw_data(&self.file),
