@@ -75,6 +75,7 @@ impl ElfLoader for TestLoader {
             x86(R_386_NONE) => Ok(()),
             // RISCV
             RiscV(R_RISCV_64) => Ok(()),
+            RiscV(R_RISCV_NONE) => Ok(()),
             RiscV(R_RISCV_RELATIVE) => {
                 // This type requires addend to be present
                 let addend = entry

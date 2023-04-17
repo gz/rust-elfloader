@@ -105,7 +105,7 @@ fn load_pie_elf() {
 #[test]
 fn check_nopie() {
     init();
-    let binary_blob = fs::read("test/test_nopie.aarch64").expect("Can't read binary");
+    let binary_blob = fs::read("test/test_nopie.riscv64").expect("Can't read binary");
     let binary = ElfBinary::new(binary_blob.as_slice()).expect("Got proper ELF file");
 
     assert!(!binary.is_pie());
@@ -115,18 +115,19 @@ fn check_nopie() {
 fn check_tls() {
     init();
 
-    let binary_blob = fs::read("test/tls.aarch64").expect("Can't read binary");
+    let binary_blob = fs::read("test/tls.riscv64").expect("Can't read binary");
     let binary = ElfBinary::new(binary_blob.as_slice()).expect("Got proper ELF file");
     let mut loader = TestLoader::new(0x1000_0000);
     binary.load(&mut loader).expect("Can't load?");
     /*
+    readelf -l test/tls.riscv64
     TLS produces entries of this form:
     pheader = Program header:
     type:             Ok(Tls)
     flags:              R
-    offset:           0xdb4
-    virtual address:  0x200db4
-    physical address: 0x200db4
+    offset:           0xe20
+    virtual address:  0x1e0c
+    physical address: 0x1e0c
     file size:        0x4
     memory size:      0x8
     align:            0x4
@@ -139,6 +140,6 @@ fn check_tls() {
     assert!(loader
         .actions
         .iter()
-        .find(|&&x| x == LoaderAction::Tls(VAddr::from(0x10d8cu64), 0x4, 0x8, 0x4))
+        .find(|&&x| x == LoaderAction::Tls(VAddr::from(0x1e0cu64), 0x4, 0x8, 0x4))
         .is_some());
 }
