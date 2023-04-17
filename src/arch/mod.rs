@@ -2,6 +2,7 @@ use crate::{ElfLoaderErr, Machine};
 
 pub mod aarch64;
 pub mod arm;
+pub mod riscv;
 pub mod x86;
 pub mod x86_64;
 
@@ -15,6 +16,7 @@ pub enum RelocationType {
     x86_64(x86_64::RelocationTypes),
     Arm(arm::RelocationTypes),
     AArch64(aarch64::RelocationTypes),
+    RiscV(riscv::RelocationTypes),
 }
 
 impl RelocationType {
@@ -25,6 +27,7 @@ impl RelocationType {
             Machine::X86_64 => RelocationType::x86_64(x86_64::RelocationTypes::from(type_num)),
             Machine::Arm => RelocationType::Arm(arm::RelocationTypes::from(type_num)),
             Machine::AArch64 => RelocationType::AArch64(aarch64::RelocationTypes::from(type_num)),
+            Machine::RISC_V => RelocationType::RiscV(riscv::RelocationTypes::from(type_num)),
             _ => return Err(ElfLoaderErr::UnsupportedArchitecture),
         };
         Ok(typ)
