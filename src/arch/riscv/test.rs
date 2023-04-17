@@ -45,24 +45,6 @@ fn load_pie_elf() {
     );
 
     // View relocation actions with readelf -r [binary]
-    // Relocation section '.rela.dyn' at offset 0x480 contains 8 entries:
-    //     Offset             Info             Type               Symbol's Value  Symbol's Name + Addend
-    // 0000000000010d90  0000000000000403 R_AARCH64_RELATIVE                        750
-    // 0000000000010d98  0000000000000403 R_AARCH64_RELATIVE                        700
-    // 0000000000010ff0  0000000000000403 R_AARCH64_RELATIVE                        754
-    // 0000000000011008  0000000000000403 R_AARCH64_RELATIVE                        11008
-    // 0000000000010fd8  0000000400000401 R_AARCH64_GLOB_DAT     0000000000000000 _ITM_deregisterTMCloneTable + 0
-    // 0000000000010fe0  0000000500000401 R_AARCH64_GLOB_DAT     0000000000000000 __cxa_finalize@GLIBC_2.17 + 0
-    // 0000000000010fe8  0000000600000401 R_AARCH64_GLOB_DAT     0000000000000000 __gmon_start__ + 0
-    // 0000000000010ff8  0000000800000401 R_AARCH64_GLOB_DAT     0000000000000000 _ITM_registerTMCloneTable + 0
-    //
-    // Relocation section '.rela.plt' at offset 0x540 contains 5 entries:
-    //     Offset             Info             Type               Symbol's Value  Symbol's Name + Addend
-    // 0000000000010fa8  0000000300000402 R_AARCH64_JUMP_SLOT    0000000000000000 __libc_start_main@GLIBC_2.34 + 0
-    // 0000000000010fb0  0000000500000402 R_AARCH64_JUMP_SLOT    0000000000000000 __cxa_finalize@GLIBC_2.17 + 0
-    // 0000000000010fb8  0000000600000402 R_AARCH64_JUMP_SLOT    0000000000000000 __gmon_start__ + 0
-    // 0000000000010fc0  0000000700000402 R_AARCH64_JUMP_SLOT    0000000000000000 abort@GLIBC_2.17 + 0
-    // 0000000000010fc8  0000000900000402 R_AARCH64_JUMP_SLOT    0000000000000000 printf@GLIBC_2.17 + 0
     //
     // Relocation section '.rela.dyn' at offset 0x420 contains 11 entries:
     //   Offset          Info           Type           Sym. Value    Sym. Name + Addend
