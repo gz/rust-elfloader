@@ -34,6 +34,11 @@ impl<'s> fmt::Debug for ElfBinary<'s> {
 impl<'s> ElfBinary<'s> {
     /// Create a new ElfBinary.
     pub fn new(region: &'s [u8]) -> Result<ElfBinary<'s>, ElfLoaderErr> {
+        // Verify that the slice is aligned properly
+        if !crate::is_aligned_to(region.as_ptr() as usize, crate::ALIGNMENT) {
+            return Err(ElfLoaderErr::UnalignedMemory);
+        }
+
         let file = ElfFile::new(region)?;
 
         // Parse relevant parts out of the the .dynamic section
@@ -381,4 +386,43 @@ impl<'s> ElfBinary<'s> {
         // https://stackoverflow.com/questions/27535289/what-is-the-correct-way-to-return-an-iterator-or-any-other-trait
         self.file.program_iter().filter(select_load)
     }
+}
+
+#[test]
+fn test_load_unaligned() {
+    use core::ops::Deref;
+
+    #[repr(C, align(8))]
+    struct AlignedStackBuffer([u8; 8096]);
+    impl Deref for AlignedStackBuffer {
+        type Target = [u8; 8096];
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl AlignedStackBuffer {
+        fn slice_at_index(&self, index: usize) -> &[u8] {
+            &self.0[index..]
+        }
+
+        fn buffer_from_file(&mut self, path: &str) {
+            let data = std::fs::read(path).unwrap();
+            let max = core::cmp::min(data.len(), self.0.len());
+            self.0[..max].copy_from_slice(&data[..max]);
+        }
+    }
+
+    // Read the file into an aligned buffer
+    let mut aligned = AlignedStackBuffer([0u8; 8096]);
+    aligned.buffer_from_file("test/test.riscv64");
+
+    // Verify aligned version works
+    let result = ElfBinary::new(aligned.deref());
+    assert!(result.is_ok());
+
+    // Verify unaligned version fails with appropriate error
+    let unaligned = aligned.slice_at_index(1);
+    let result = ElfBinary::new(unaligned);
+    assert_eq!(result.err().unwrap(), ElfLoaderErr::UnalignedMemory);
 }
