@@ -21,11 +21,15 @@ use bitflags::bitflags;
 use xmas_elf::dynamic::*;
 use xmas_elf::program::ProgramIter;
 
-pub use xmas_elf::header::Machine;
+pub use xmas_elf::header::{Header, Machine};
 pub use xmas_elf::program::{Flags, ProgramHeader, ProgramHeader64};
 pub use xmas_elf::sections::{Rel, Rela};
 pub use xmas_elf::symbol_table::{Entry, Entry64};
 pub use xmas_elf::{P32, P64};
+
+/// Required alignment for zero-copy reads provided to xmas_elf by the
+/// zero crate.
+pub(crate) const ALIGNMENT: usize = core::mem::align_of::<Header>();
 
 /// An iterator over [`ProgramHeader`] whose type is `LOAD`.
 pub type LoadableHeaders<'a, 'b> = Filter<ProgramIter<'a, 'b>, fn(&ProgramHeader) -> bool>;
@@ -47,6 +51,7 @@ pub struct RelocationEntry {
 pub enum ElfLoaderErr {
     ElfParser { source: &'static str },
     OutOfMemory,
+    UnalignedMemory,
     SymbolTableNotFound,
     UnsupportedElfFormat,
     UnsupportedElfVersion,
@@ -69,6 +74,7 @@ impl fmt::Display for ElfLoaderErr {
         match self {
             ElfLoaderErr::ElfParser { source } => write!(f, "Error in ELF parser: {}", source),
             ElfLoaderErr::OutOfMemory => write!(f, "Out of memory"),
+            ElfLoaderErr::UnalignedMemory => write!(f, "Data must be aligned to {:?}", ALIGNMENT),
             ElfLoaderErr::SymbolTableNotFound => write!(f, "No symbol table in the ELF file"),
             ElfLoaderErr::UnsupportedElfFormat => write!(f, "ELF format not supported"),
             ElfLoaderErr::UnsupportedElfVersion => write!(f, "ELF version not supported"),
@@ -164,6 +170,15 @@ pub trait ElfLoader {
     fn make_readonly(&mut self, _base: VAddr, _size: usize) -> Result<(), ElfLoaderErr> {
         Ok(())
     }
+}
+
+/// Utility function to verify alignment.
+///
+/// Note: this may be stabilized in the future as:
+///
+/// [core::ptr::is_aligned_to](https://doc.rust-lang.org/core/primitive.pointer.html#method.is_aligned_to)
+pub(crate) fn is_aligned_to(ptr: usize, align: usize) -> bool {
+    ptr & (align - 1) == 0
 }
 
 #[cfg(doctest)]
