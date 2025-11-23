@@ -1,5 +1,12 @@
 ![Build](https://github.com/gz/rust-elfloader/actions/workflows/standard.yml/badge.svg) [![cargo-badge][]][cargo-link] [![docs-badge][]][docs-link]
 
+> ⚠️ **Repository Archived**
+>
+> This repository is no longer actively maintained.  
+> Issues and pull requests are not being monitored.  
+>
+> The code remains available for reference, but no work on it is currently planned.
+
 # elfloader
 
 A library to load and relocate ELF files in memory. This library depends only on
